@@ -19,7 +19,7 @@ import org.junit.runner.RunWith
 class AppContextInstrumentedTest {
 
     @Test
-    fun `applicationContext 的包名应当以基础包名打头`() {
+    fun applicationContextPackageNameStartsWithBasePackage() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         assertNotNull(ctx)
         assertTrue(
@@ -29,7 +29,7 @@ class AppContextInstrumentedTest {
     }
 
     @Test
-    fun `assetManager 应当能列出 cpack 目录`() {
+    fun assetManagerContainsCpackDirectory() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         val files = ctx.assets.list("cpack") ?: emptyArray()
         // 资源包文件是软件运行的前置条件，少了就说明打包流程或目录被改坏了

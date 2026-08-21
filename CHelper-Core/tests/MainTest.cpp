@@ -185,6 +185,8 @@ TEST(MainTest, LexCommand) {
                     uR"(execute if block ~~~ command_block run)",
                     uR"(execute if block ~~~ bamboo)",
                     uR"(give @s apple 12 1)",
+                    uR"(list)",
+                    uR"(/list)",
                     uR"(spreadplayers ~ ~ 0 1200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)",
                     uR"(camerashake add @a 10000000000000000000000000000000000000000000000000000 3402823466385288598117041834845169254401)",
                     uR"(setblock ~~~ candle_cake[lit=)",
@@ -222,6 +224,8 @@ TEST(MainTest, ParseCommand) {
                     uR"(execute if block ~~~ command_block run)",
                     uR"(execute if block ~~~ bamboo)",
                     uR"(give @s apple 12 1)",
+                    uR"(list)",
+                    uR"(/list)",
                     uR"(spreadplayers ~ ~ 0 1200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)",
                     uR"(camerashake add @a 10000000000000000000000000000000000000000000000000000 3402823466385288598117041834845169254401)",
                     uR"(setblock ~~~ candle_cake[lit=)",
@@ -229,4 +233,23 @@ TEST(MainTest, ParseCommand) {
                     uR"(list)",
                     uR"(/list)"
             });
+}
+
+TEST(MainTest, SemanticNodeCount) {
+    std::filesystem::path resourceDir(RESOURCE_DIR);
+    std::unique_ptr<CHelper::CPack> cPack = CHelper::CPack::createByDirectory(resourceDir / "resources" / "beta" / "vanilla");
+    CHelper::ASTNode astNode = CHelper::Parser::parse(u"", *cPack);
+    CHelper::CHelperCore core(std::move(cPack), std::move(astNode));
+
+    const auto expectNodeCount = [&core](const std::u16string &command, size_t expected) {
+        core.onTextChanged(command, command.length());
+        EXPECT_EQ(core.getNodeCount(), expected) << utf8::utf16to8(command);
+    };
+
+    expectNodeCount(u"not_a_command", 0);
+    expectNodeCount(u"/list", 1);
+    expectNodeCount(uR"(tellraw @a {"rawtext":[{"text":"hello"}]})", 3);
+    expectNodeCount(u"tp @a ~ ~ ~ facing @s", 5);
+    expectNodeCount(u"execute as @a as @a as @a as @a as @a as @a as @a run say hi", 18);
+    expectNodeCount(u"execute as @a as @a as @a as @a as @a as @a as @a as @a run list", 19);
 }

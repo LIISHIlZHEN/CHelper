@@ -37,6 +37,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,8 +69,22 @@ fun LeaderboardScreen(
     navController: NavHostController?,
     viewModel: LeaderboardViewModel = viewModel()
 ) {
+    var publishMode by rememberSaveable { mutableStateOf(false) }
+    val sortedUsers = remember(viewModel.leaderboard, publishMode) {
+        if (publishMode) {
+            viewModel.leaderboard.sortedWith(
+                compareByDescending<LeaderboardUser> { it.totalFunctions ?: 0 }
+                    .thenByDescending { it.totalLikes ?: 0 }
+            )
+        } else {
+            viewModel.leaderboard.sortedWith(
+                compareByDescending<LeaderboardUser> { it.totalLikes ?: 0 }
+                    .thenByDescending { it.totalFunctions ?: 0 }
+            )
+        }
+    }
     RootViewWithHeaderAndCopyright(
-        title = "百强创作者榜单"
+        title = "创作者排行榜"
     ) {
         if (viewModel.isLoading && viewModel.leaderboard.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -134,10 +153,35 @@ fun LeaderboardScreen(
                     }
                 }
 
-                itemsIndexed(viewModel.leaderboard) { index, user ->
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CHelperTheme.colors.backgroundComponent)
+                            .padding(4.dp)
+                    ) {
+                        LeaderboardModeTab(
+                            title = "点赞榜",
+                            selected = !publishMode,
+                            modifier = Modifier.weight(1f),
+                            onClick = { publishMode = false }
+                        )
+                        LeaderboardModeTab(
+                            title = "发布榜",
+                            selected = publishMode,
+                            modifier = Modifier.weight(1f),
+                            onClick = { publishMode = true }
+                        )
+                    }
+                }
+
+                itemsIndexed(sortedUsers) { index, user ->
                     LeaderboardItem(
                         rank = index + 1,
                         user = user,
+                        publishMode = publishMode,
                         onClick = {
                             user.id?.let {
                                 navController?.navigate(UserProfileScreenKey(it))
@@ -166,7 +210,38 @@ fun LeaderboardScreen(
 }
 
 @Composable
-private fun LeaderboardItem(rank: Int, user: LeaderboardUser, onClick: () -> Unit) {
+private fun LeaderboardModeTab(
+    title: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (selected) CHelperTheme.colors.mainColor else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            style = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                color = if (selected) Color.White else CHelperTheme.colors.textSecondary
+            )
+        )
+    }
+}
+
+@Composable
+private fun LeaderboardItem(
+    rank: Int,
+    user: LeaderboardUser,
+    publishMode: Boolean,
+    onClick: () -> Unit
+) {
     val isTop3 = rank <= 3
     val rankColor = when (rank) {
         1 -> Color(0xFFFFD700)
@@ -247,19 +322,19 @@ private fun LeaderboardItem(rank: Int, user: LeaderboardUser, onClick: () -> Uni
         Column(horizontalAlignment = Alignment.End) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
-                    painter = painterResource(id = R.drawable.heart_filled),
-                    contentDescription = "Likes",
+                    painter = painterResource(id = if (publishMode) R.drawable.box else R.drawable.heart_filled),
+                    contentDescription = if (publishMode) "Functions" else "Likes",
                     modifier = Modifier.size(14.dp),
                     colorFilter = ColorFilter.tint(CHelperTheme.colors.mainColor)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "${user.totalLikes ?: 0}",
+                    text = "${if (publishMode) user.totalFunctions ?: 0 else user.totalLikes ?: 0}",
                     style = TextStyle(fontSize = 14.sp, color = CHelperTheme.colors.textMain)
                 )
             }
             Text(
-                text = "${user.totalFunctions ?: 0} 库",
+                text = if (publishMode) "${user.totalLikes ?: 0} 个赞" else "${user.totalFunctions ?: 0} 库",
                 style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary)
             )
         }

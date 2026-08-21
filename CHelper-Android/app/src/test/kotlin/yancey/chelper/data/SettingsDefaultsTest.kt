@@ -47,6 +47,9 @@ class SettingsDefaultsTest {
                 s.isFloatingWindowFontAlphaSync,
                 s.syntaxHighlightMaxLength,
                 s.publicLibraryHomeRecommend,
+                s.isEnableMcdHighlight,
+                s.isEnableLoongFlowImportMiniIcon,
+                s.hasShownCommandEditorHint,
             ).all { it == null }
         )
     }

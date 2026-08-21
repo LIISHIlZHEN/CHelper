@@ -11,7 +11,7 @@ import org.junit.Test
 /**
  * LibraryFunction 是命令库的核心实体，字段最多、最容易"被加新字段加坏"。
  * 这个测试做端到端 JSON → 对象解析，把所有 @SerialName 转换都覆盖一遍：
- *   create_time / like_count / is_liked / has_public_version / is_publish / is_owner / chain_data / auto_sync
+     *   create_time / like_count / is_liked / is_favorited / has_public_version / is_publish / is_owner / chain_data / auto_sync
  * 同时验证 chain_data 这种可变结构存为 JsonElement 不丢信息。
  */
 class LibraryFunctionParseTest {
@@ -34,6 +34,7 @@ class LibraryFunctionParseTest {
               "preview":"/tp...",
               "like_count":12,
               "is_liked":true,
+              "is_favorited":true,
               "has_public_version":false,
               "is_publish":true,
               "is_owner":true,
@@ -48,6 +49,7 @@ class LibraryFunctionParseTest {
         assertEquals(listOf("tp", "home"), fn.tags)
         assertEquals(12, fn.likeCount)
         assertEquals(true, fn.isLiked)
+        assertEquals(true, fn.isFavorited)
         assertEquals(false, fn.hasPublicVersion)
         assertEquals(true, fn.isPublish)
         assertEquals(true, fn.isOwner)
@@ -82,6 +84,18 @@ class LibraryFunctionParseTest {
         )
         val round = json.decodeFromString<LibraryFunction>(encoded)
         assertTrue(round.localUnsynced)
+    }
+
+    @Test
+    fun `local_is_v2 能随本地 JSON 往返持久化`() {
+        val encoded = Json.encodeToString(
+            LibraryFunction.serializer(),
+            LibraryFunction(name = "v2", content = "> I\nsay hello", localIsV2 = true)
+        )
+        val round = json.decodeFromString<LibraryFunction>(encoded)
+
+        assertTrue(encoded.contains("\"local_is_v2\":true"))
+        assertEquals(true, round.localIsV2)
     }
 
     @Test

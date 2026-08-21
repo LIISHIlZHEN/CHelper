@@ -151,6 +151,17 @@ class CHelperCore private constructor(
             return getStructure0(pointer)
         }
 
+    val nodeCount: Int
+        /**
+         * 获取最佳解析路径中已经匹配的命令语义节点数量
+         */
+        get() {
+            if (pointer == 0L) {
+                return 0
+            }
+            return getNodeCount0(pointer)
+        }
+
     /**
      * 补全提示被使用时通知c++内核
      * 
@@ -331,6 +342,14 @@ class CHelperCore private constructor(
          */
         @JvmStatic
         private external fun getStructure0(pointer: Long): String?
+
+        /**
+         * 获取最佳解析路径中已经匹配的命令语义节点数量
+         *
+         * @param pointer 内核的内存地址
+         */
+        @JvmStatic
+        private external fun getNodeCount0(pointer: Long): Int
 
         /**
          * 补全提示被使用时通知c++内核

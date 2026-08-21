@@ -21,12 +21,12 @@ package yancey.chelper.ui.completion
 import android.app.Application
 import android.content.ClipData
 import android.util.TypedValue
-import android.view.Gravity
 import android.view.ViewGroup
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,17 +39,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -60,6 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -67,6 +77,7 @@ import com.hjq.toast.Toaster
 import kotlinx.coroutines.launch
 import yancey.chelper.R
 import yancey.chelper.android.widget.CommandEditText
+import yancey.chelper.core.ErrorReason
 import yancey.chelper.core.SelectedString
 import yancey.chelper.core.Theme
 import yancey.chelper.data.SettingsDataStore
@@ -274,8 +285,9 @@ fun ToolbarItem(@DrawableRes id: Int, description: String, onClick: () -> Unit) 
 fun CompletionScreenTopBar(
     structure: String?,
     paramHint: String?,
-    errorReason: String?,
-    fontSize: TextUnit = TextUnit.Unspecified
+    errorReasons: Array<ErrorReason>?,
+    fontSize: TextUnit = TextUnit.Unspecified,
+    onErrorClick: (ErrorReason) -> Unit = {}
 ) {
     Column {
         Text(
@@ -297,17 +309,36 @@ fun CompletionScreenTopBar(
                 fontSize = fontSize,
             )
         )
-        errorReason?.let {
-            Text(
-                text = it,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 5.dp),
-                style = TextStyle(
-                    color = CHelperTheme.colors.textErrorReason,
-                    fontSize = fontSize,
+        if (!errorReasons.isNullOrEmpty()) {
+            if (errorReasons.size > 1) {
+                Text(
+                    text = "可能的错误原因：",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 5.dp),
+                    style = TextStyle(
+                        color = CHelperTheme.colors.textErrorReason,
+                        fontSize = fontSize,
+                    )
                 )
-            )
+            }
+            errorReasons.forEachIndexed { index, error ->
+                Text(
+                    text = if (errorReasons.size == 1) {
+                        "${error.errorReason ?: "未知错误"} · 点此定位"
+                    } else {
+                        "${index + 1}. ${error.errorReason ?: "未知错误"} · 点此定位"
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onErrorClick(error) }
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                    style = TextStyle(
+                        color = CHelperTheme.colors.textErrorReason,
+                        fontSize = fontSize,
+                    )
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -325,8 +356,13 @@ fun CompletionScreen(
     navController: NavHostController = rememberNavController(),
     shutdown: () -> Unit = {},
     hideView: () -> Unit = {},
+    isScreenVisible: Boolean = true,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val commandEditorHeight = (LocalConfiguration.current.screenHeightDp / 3)
+        .coerceIn(120, 220)
+        .dp
     val settingsDataStore = remember(context) { SettingsDataStore(context) }
     val cpackBranch by settingsDataStore.cpackBranch()
         .collectAsState(initial = "")
@@ -344,6 +380,36 @@ fun CompletionScreen(
         .collectAsState(initial = false)
     val syntaxHighlightMaxLength by settingsDataStore.syntaxHighlightMaxLength()
         .collectAsState(initial = 20000)
+    var isCommandEditorHintVisible by remember { mutableStateOf(false) }
+    var isLifecycleResumed by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { source, _ ->
+            isLifecycleResumed = source.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(
+        viewModel.nodeCount,
+        viewModel.isCommandEditorMode,
+        isScreenVisible,
+        isLifecycleResumed
+    ) {
+        if (!shouldShowCommandEditorHint(
+                viewModel.nodeCount,
+                viewModel.isCommandEditorMode,
+                isScreenVisible && isLifecycleResumed
+            )
+        ) {
+            isCommandEditorHintVisible = false
+        } else if (settingsDataStore.claimCommandEditorHint()) {
+            isCommandEditorHintVisible = true
+        }
+    }
 
     DisposableEffect(viewModel, syntaxHighlightMaxLength) {
         viewModel.syntaxHighlightMaxLength = syntaxHighlightMaxLength
@@ -367,23 +433,9 @@ fun CompletionScreen(
         onDispose { }
     }
     val clipboard = LocalClipboard.current
-    val errorReason = remember(viewModel.errorReasons) {
-        viewModel.errorReasons.let {
-            if (it.isNullOrEmpty()) {
-                return@remember null
-            } else {
-                if (it.size == 1) {
-                    return@remember it[0].errorReason
-                } else {
-                    val errorReasonStr = StringBuilder("可能的错误原因：")
-                    for (i in it.indices) {
-                        errorReasonStr.append("\n").append(i + 1).append(". ")
-                            .append(it[i].errorReason)
-                    }
-                    return@remember errorReasonStr.toString()
-                }
-            }
-        }
+    val commandEditText = remember { arrayOfNulls<CommandEditText>(1) }
+    val onErrorClick: (ErrorReason) -> Unit = { error ->
+        commandEditText[0]?.focusErrorRange(error.start, error.end)
     }
     RootView {
         Column(
@@ -400,7 +452,8 @@ fun CompletionScreen(
                     CompletionScreenTopBar(
                         viewModel.structure,
                         viewModel.paramHint,
-                        if (isShowErrorReason) errorReason else null
+                        if (isShowErrorReason) viewModel.errorReasons else null,
+                        onErrorClick = onErrorClick
                     )
                 }
                 LazyColumn(
@@ -414,8 +467,9 @@ fun CompletionScreen(
                                 CompletionScreenTopBar(
                                     viewModel.structure,
                                     viewModel.paramHint,
-                                    if (isShowErrorReason) errorReason else null,
-                                    14.sp
+                                    if (isShowErrorReason) viewModel.errorReasons else null,
+                                    14.sp,
+                                    onErrorClick
                                 )
                             } else {
                                 val realIndex = suggestionIndex - 1
@@ -549,22 +603,71 @@ fun CompletionScreen(
                     )
                 }
             }
+            if (isCommandEditorHintVisible) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(CHelperTheme.colors.background)
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CHelperTheme.colors.mainColor),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "命令有点长了，长按下方箭头可进入多行编辑",
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                viewModel.isCommandEditorMode = true
+                                isCommandEditorHintVisible = false
+                                Toaster.show("已开启多行编辑，再次长按箭头退出")
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = TextStyle(color = Color.White, fontSize = 13.sp)
+                    )
+                    Text(
+                        text = "×",
+                        modifier = Modifier
+                            .clickable { isCommandEditorHintVisible = false }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = TextStyle(color = Color.White, fontSize = 18.sp)
+                    )
+                }
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp)
+                    .height(if (viewModel.isCommandEditorMode) commandEditorHeight else 40.dp)
                     .background(CHelperTheme.colors.background),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = if (viewModel.isCommandEditorMode) Alignment.Top else Alignment.CenterVertically
             ) {
                 Icon(
                     id = if (viewModel.isShowMenu) R.drawable.chevron_down else R.drawable.chevron_up,
                     modifier = Modifier
-                        .clickable {
-                            viewModel.isShowMenu = !viewModel.isShowMenu
-                        }
+                        .combinedClickable(
+                            onClick = { viewModel.isShowMenu = !viewModel.isShowMenu },
+                            onLongClickLabel = if (viewModel.isCommandEditorMode) "退出多行编辑" else "进入多行编辑",
+                            onLongClick = {
+                                viewModel.isCommandEditorMode = !viewModel.isCommandEditorMode
+                                isCommandEditorHintVisible = false
+                                if (viewModel.isCommandEditorMode) {
+                                    viewModel.viewModelScope.launch {
+                                        settingsDataStore.claimCommandEditorHint()
+                                    }
+                                }
+                                Toaster.show(
+                                    if (viewModel.isCommandEditorMode) {
+                                        "已开启多行编辑，再次长按箭头退出"
+                                    } else {
+                                        "已退出多行编辑"
+                                    }
+                                )
+                            }
+                        )
                         .padding(8.dp)
                         .size(24.dp),
-                    contentDescription = stringResource(R.string.layout_completion_icon_show_menu_content_description)
+                    contentDescription = stringResource(R.string.layout_completion_icon_show_menu_content_description) +
+                            if (viewModel.isCommandEditorMode) "，长按退出多行编辑" else "，长按进入多行编辑"
                 )
 //                CommandTextField(
 //                    value = viewModel.command,
@@ -585,16 +688,14 @@ fun CompletionScreen(
                         .weight(1f),
                     factory = { context ->
                         CommandEditText(context).apply {
+                            commandEditText[0] = this
                             layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
                             background = null
-                            gravity = Gravity.CENTER_VERTICAL
                             hint = hintStr
-                            maxLines = 1
-                            isSingleLine = true
-                            setPadding(0, 0, 0, 0)// 修复：REDMI Turbo 4 Pro 输入框可以滚动导致文本显示不全
+                            setEditorMode(viewModel.isCommandEditorMode)
                             setTextColor(textMain.toArgb())
                             setHintTextColor(textSecondary.toArgb())
                             setTheme(if (theme == CHelperTheme.Theme.Light) Theme.THEME_DAY else Theme.THEME_NIGHT)
@@ -612,6 +713,7 @@ fun CompletionScreen(
                         }
                     },
                     update = { view ->
+                        view.setEditorMode(viewModel.isCommandEditorMode)
                         val str = viewModel.command.text.toString()
                         val selectionStart = viewModel.command.selection.start
                         val selectionEnd = viewModel.command.selection.end

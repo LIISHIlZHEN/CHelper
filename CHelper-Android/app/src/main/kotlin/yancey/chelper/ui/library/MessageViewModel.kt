@@ -26,11 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import yancey.chelper.network.ServiceManager
 import yancey.chelper.network.library.data.SiteMessage
+import yancey.chelper.network.library.util.CommandLabWebSso
 
 class MessageViewModel : ViewModel() {
     var messages: SnapshotStateList<SiteMessage> = mutableStateListOf()
@@ -44,6 +46,9 @@ class MessageViewModel : ViewModel() {
     var unreadCount by mutableIntStateOf(0)
 
     var showUnreadOnly by mutableStateOf(false)
+    var pendingBrowserUrl by mutableStateOf<String?>(null)
+    var linkMessage by mutableStateOf<String?>(null)
+    var isResolvingLink by mutableStateOf(false)
 
     private var hasLoaded = false
 
@@ -112,6 +117,24 @@ class MessageViewModel : ViewModel() {
                 }
             } catch (_: Exception) {
                 // 静默失败，不影响主流程
+            }
+        }
+    }
+
+    fun openMessageLink(url: String) {
+        if (isResolvingLink) return
+        viewModelScope.launch {
+            isResolvingLink = true
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    CommandLabWebSso.resolveBrowserUrl(url)
+                }
+                result.onSuccess { pendingBrowserUrl = it }
+                    .onFailure { linkMessage = it.message ?: "无法打开链接" }
+            } catch (e: CancellationException) {
+                throw e
+            } finally {
+                isResolvingLink = false
             }
         }
     }

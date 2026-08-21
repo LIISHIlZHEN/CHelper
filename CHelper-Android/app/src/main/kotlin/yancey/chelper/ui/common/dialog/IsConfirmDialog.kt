@@ -29,12 +29,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.LinkInteractionListener
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,7 +63,17 @@ fun IsConfirmDialog(
     confirmText: String = stringResource(R.string.dialog_is_confirm_confirm),
     onCancel: () -> Unit = {},
     onConfirm: () -> Unit = {},
+    contentLinksEnabled: Boolean = false,
+    onContentLinkClick: ((String) -> Unit)? = null,
 ) {
+    val linkColor = CHelperTheme.colors.mainColor
+    val renderedContent = remember(content, contentLinksEnabled, linkColor, onContentLinkClick) {
+        if (contentLinksEnabled) {
+            annotateHttpLinks(content, linkColor, onContentLinkClick)
+        } else {
+            AnnotatedString(content)
+        }
+    }
     CustomDialog(onDismissRequest = onDismissRequest) {
         DialogContainer(backgroundNoTranslate = true) {
             Column {
@@ -79,7 +99,7 @@ fun IsConfirmDialog(
                             .fillMaxWidth()
                             .weight(1f, fill = false)
                             .verticalScroll(rememberScrollState()),
-                        text = content,
+                        text = renderedContent,
                         style = TextStyle(fontSize = 20.sp, textAlign = TextAlign.Center)
                     )
                 }
@@ -127,6 +147,47 @@ fun IsConfirmDialog(
         }
     }
 }
+
+internal fun annotateHttpLinks(
+    text: String,
+    linkColor: Color,
+    onLinkClick: ((String) -> Unit)? = null,
+): AnnotatedString =
+    buildAnnotatedString {
+        val interactionListener = onLinkClick?.let { callback ->
+            LinkInteractionListener { link ->
+                (link as? LinkAnnotation.Url)?.url?.let(callback)
+            }
+        }
+        var contentStart = 0
+        HTTP_URL_REGEX.findAll(text).forEach { match ->
+            val url = match.value.trimEnd('.', ',', ';', ':', '!', ')', ']')
+            if (url.isEmpty()) return@forEach
+
+            append(text.substring(contentStart, match.range.first))
+            withLink(
+                LinkAnnotation.Url(
+                    url = url,
+                    styles = TextLinkStyles(
+                        style = SpanStyle(
+                            color = linkColor,
+                            textDecoration = TextDecoration.Underline,
+                        )
+                    ),
+                    linkInteractionListener = interactionListener,
+                )
+            ) {
+                append(url)
+            }
+            contentStart = match.range.first + url.length
+        }
+        append(text.substring(contentStart))
+    }
+
+private val HTTP_URL_REGEX = Regex(
+    pattern = """https?://(?:localhost|(?:\d{1,3}\.){3}\d{1,3}|(?:[A-Za-z0-9-]+\.)+[A-Za-z0-9-]{2,})(?::\d{1,5})?(?:[/?#][A-Za-z0-9\-._~:/?#\[\]@!&()*+,;=%]*)?""",
+    option = RegexOption.IGNORE_CASE,
+)
 
 @Preview
 @Composable

@@ -109,6 +109,12 @@ interface CommandLabPublicService {
 
         @JsonNames("is_liked", "isLiked")
         var isLiked: Boolean? = null
+
+        @JsonNames("daily_first_like_points", "dailyFirstLikePoints")
+        var dailyFirstLikePoints: Double? = null
+
+        @JsonNames("points_awarded", "pointsAwarded")
+        var pointsAwarded: Double? = null
     }
 
     /**

@@ -32,9 +32,16 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import yancey.chelper.network.library.data.ActivityConfig
+import yancey.chelper.network.library.data.ActivityLedgerPage
+import yancey.chelper.network.library.data.ActivitySummary
 import yancey.chelper.network.library.data.BaseResult
 import yancey.chelper.network.library.data.LibraryFunction
 import yancey.chelper.network.library.data.MessageListResponse
+import yancey.chelper.network.library.data.RedeemActivityRequest
+import yancey.chelper.network.library.data.RedeemActivityResponse
+import yancey.chelper.network.library.data.RewardRedemptions
+import yancey.chelper.network.library.data.TierDetails
 import yancey.chelper.network.library.data.UnreadCountResponse
 import yancey.chelper.network.library.data.UpdateProfileRequest
 
@@ -216,6 +223,25 @@ interface CommandLabUserService {
     @POST("register/login")
     suspend fun login(@Body request: LoginRequest): BaseResult<LoginResponse?>
 
+    @Serializable
+    class WebSsoAuthorizeRequest(
+        var next: String? = null,
+    )
+
+    @Serializable
+    class WebSsoAuthorizeResponse(
+        @SerialName("web_url") var webUrl: String? = null,
+    )
+
+    /**
+     * 为正式账号签发一次性网页登录地址。
+     * Authorization 与 X-Client 由 AuthInterceptor 统一添加。
+     */
+    @POST("auth/chelper/web-sso/authorize")
+    suspend fun authorizeWebSso(
+        @Body request: WebSsoAuthorizeRequest,
+    ): BaseResult<WebSsoAuthorizeResponse?>
+
 
     // Avatar
 
@@ -335,6 +361,15 @@ interface CommandLabUserService {
         @Query("page_size") pageSize: Int = 100
     ): BaseResult<CommandLabPublicService.GetFunctionsResponse?>
 
+    /** 获取当前账号在网页端与移动端共用的云端收藏夹。 */
+    @Headers("Cache-Control: no-cache")
+    @GET("library")
+    suspend fun getFavoriteLibraries(
+        @Query("type") type: Int = 6,
+        @Query("page_num") pageNum: Int = 1,
+        @Query("page_size") pageSize: Int = 100
+    ): BaseResult<CommandLabPublicService.GetFunctionsResponse?>
+
     /**
      * 获取用户自己私有命令库的详细内容
      *
@@ -384,6 +419,44 @@ interface CommandLabUserService {
         @Path("id") id: Int
     ): BaseResult<JsonElement?>
 
+    @Serializable
+    class FavoriteLibraryResponse(
+        @SerialName("is_favorited") var isFavorited: Boolean? = null,
+        var uuid: String? = null
+    )
+
+/** 收藏或取消收藏公开命令库。后端按 UUID 绑定，多端共享。 */
+    @POST("library/{id}/favorite")
+    suspend fun toggleFavorite(
+        @Path("id") id: Int
+    ): BaseResult<FavoriteLibraryResponse?>
+
+    /**
+     * CHelper 分享链接响应。仅安卓客户端可创建，落地页为 `/s/{code}`。
+     */
+    @Serializable
+    class LibraryShareResponse(
+        var code: String? = null,
+        @SerialName("share_url") var shareUrl: String? = null,
+        @SerialName("share_path") var sharePath: String? = null,
+        @SerialName("library_id") var libraryId: Int? = null,
+        @SerialName("library_name") var libraryName: String? = null,
+        @SerialName("sharer_nickname") var sharerNickname: String? = null,
+        @SerialName("import_to_local") var importToLocal: Boolean? = null,
+        @SerialName("expires_at") var expiresAt: Long? = null,
+        @SerialName("download_url") var downloadUrl: String? = null
+    )
+
+    /**
+     * 生成公开库分享链接。默认 `import_to_local=0`，接收端只打开云端详情。
+     * 需正式登录；游客不可用；后端会校验 X-Client。
+     */
+    @POST("library/{id}/share")
+    suspend fun createLibraryShare(
+        @Path("id") id: Int,
+        @Query("import_to_local") importToLocal: Boolean = false
+    ): BaseResult<LibraryShareResponse?>
+
     // Quota
 
     /**
@@ -405,6 +478,32 @@ interface CommandLabUserService {
      */
     @GET("library/quota")
     suspend fun getQuota(): BaseResult<QuotaResponse?>
+
+    // Activity
+
+    @GET("activity/config")
+    suspend fun getActivityConfig(): BaseResult<ActivityConfig?>
+
+    @GET("activity/me")
+    suspend fun getMyActivity(): BaseResult<ActivitySummary?>
+
+    @GET("activity/ledger")
+    suspend fun getActivityLedger(
+        @Query("cursor") cursor: Int? = null,
+        @Query("limit") limit: Int = 20
+    ): BaseResult<ActivityLedgerPage?>
+
+    @GET("activity/redemptions")
+    suspend fun getActivityRedemptions(): BaseResult<RewardRedemptions?>
+
+    @POST("activity/redeem/{productId}")
+    suspend fun redeemActivityProduct(
+        @Path("productId") productId: String,
+        @Body request: RedeemActivityRequest
+    ): BaseResult<RedeemActivityResponse?>
+
+    @GET("activity/tiers")
+    suspend fun getMyTierDetails(): BaseResult<TierDetails?>
 
     // Message
 

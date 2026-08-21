@@ -29,6 +29,7 @@ import com.hjq.device.compat.DeviceOs
 import com.hjq.permissions.XXPermissions
 import com.hjq.permissions.permission.PermissionLists
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -40,6 +41,7 @@ import yancey.chelper.data.SettingsDataStore
 import yancey.chelper.network.ServiceManager
 import yancey.chelper.network.chelper.data.Announcement
 import yancey.chelper.network.chelper.data.VersionInfo
+import yancey.chelper.network.library.util.CommandLabWebSso
 import java.io.File
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -52,6 +54,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var isShowAnnouncementDialog by mutableStateOf(false)
     var isShowUpdateNotificationsDialog by mutableStateOf(false)
     var isShowCommandLabVersionDialog by mutableStateOf(false)
+    var pendingAnnouncementUrl by mutableStateOf<String?>(null)
+    var announcementLinkMessage by mutableStateOf<String?>(null)
+    var isAuthorizingWebSso by mutableStateOf(false)
     private val settingsDataStore = SettingsDataStore(application.applicationContext)
     private var isNeedToShowXiaomiClipboardPermissionTips: Boolean? = null
     private val skipXiaomiClipboardPermissionTipsFile: File =
@@ -182,6 +187,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (_: Exception) {
 
+            }
+        }
+    }
+
+    fun openAnnouncementLink(url: String) {
+        if (isAuthorizingWebSso) return
+
+        viewModelScope.launch {
+            isAuthorizingWebSso = true
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    CommandLabWebSso.resolveBrowserUrl(url)
+                }
+                result.onSuccess { pendingAnnouncementUrl = it }
+                    .onFailure { announcementLinkMessage = it.message ?: "无法打开链接" }
+            } catch (e: CancellationException) {
+                throw e
+            } finally {
+                isAuthorizingWebSso = false
             }
         }
     }

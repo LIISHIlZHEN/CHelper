@@ -41,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,12 +67,16 @@ import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.hjq.toast.Toaster
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import yancey.chelper.R
 import yancey.chelper.data.LocalCommandLabDataStore
 import yancey.chelper.network.library.data.LibraryFunction
 import yancey.chelper.ui.CPLUploadScreenKey
 import yancey.chelper.ui.CPLUserScreenKey
+import yancey.chelper.ui.ActivityCenterScreenKey
 import yancey.chelper.ui.LibraryEditScreenKey
 import yancey.chelper.ui.LocalLibraryShowScreenKey
 import yancey.chelper.ui.MessageScreenKey
@@ -97,18 +102,31 @@ fun LocalLibraryListScreen(
     val localLibraryFunctions by localCommandLabDataStore.localLibraryFunctions()
         .collectAsState(initial = null)
     val clipboard = LocalClipboard.current
-    val filteredLibraries =
-        remember(localLibraryFunctions, viewModel.keyword.text) {
-            if (viewModel.keyword.text.isEmpty()) {
-                localLibraryFunctions ?: listOf()
-            } else {
-                localLibraryFunctions?.filter { it.name != null && it.name!!.contains(viewModel.keyword.text) }
-                    ?: listOf()
-            }
+    val searchQuery = viewModel.keyword.text.toString()
+    val filteredLibraries by produceState(
+        initialValue = emptyList(),
+        localLibraryFunctions,
+        searchQuery,
+        viewModel.localSort
+    ) {
+        if (searchQuery.isNotBlank()) delay(150)
+        value = withContext(Dispatchers.Default) {
+            filterAndSortLocalLibraries(
+                libraries = localLibraryFunctions.orEmpty(),
+                query = searchQuery,
+                sort = viewModel.localSort
+            )
         }
+    }
 
-    var showLocalMenuIndex by remember { mutableStateOf(-1) }
-    var showDeleteConfirmIndex by remember { mutableStateOf(-1) }
+    var showLocalMenuId by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmId by remember { mutableStateOf<String?>(null) }
+    var showLocalToolsMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var selectedLocalIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var localSelectionMode by remember { mutableStateOf(false) }
+    var showBatchDeleteConfirm by remember { mutableStateOf(false) }
+    val isSelectionMode = localSelectionMode
     // 右上角"账户"图标点开后的菜单（账户中心 / 退出登录）
     // 未登录态点图标直接跳 CPLUserScreen，不弹这个菜单
     var showAccountMenu by remember { mutableStateOf(false) }
@@ -120,10 +138,16 @@ fun LocalLibraryListScreen(
     LaunchedEffect(Unit) {
         viewModel.refreshUserState()
     }
+    LaunchedEffect(localLibraryFunctions) {
+        val existingIds = localLibraryFunctions.orEmpty().mapNotNull { it.localEntryId }.toSet()
+        selectedLocalIds = selectedLocalIds.intersect(existingIds)
+    }
 
     RootViewWithHeaderAndCopyright(
         title = "我的库",
-        showBack = !isTab,
+        // 与云端首页一致：tab 内也显示返回箭头，pop 回进入命令库前的页面
+        showBack = true,
+        onBack = if (isTab) ({ navController.popBackStack() }) else null,
         headerRight = {
             Icon(
                 id = R.drawable.file_arrow_left,
@@ -148,6 +172,14 @@ fun LocalLibraryListScreen(
                     .padding(5.dp)
                     .size(24.dp),
                 contentDescription = stringResource(R.string.layout_library_list_icon_add_content_description)
+            )
+            Icon(
+                id = R.drawable.more,
+                modifier = Modifier
+                    .clickable { showLocalToolsMenu = true }
+                    .padding(5.dp)
+                    .size(24.dp),
+                contentDescription = "本地库管理"
             )
             // 账户入口：把原来"我的" tab 砍掉后挪到这里。已登录弹菜单（账户中心/登出），
             // 未登录直接跳 CPLUserScreen 让用户去登录注册
@@ -205,7 +237,11 @@ fun LocalLibraryListScreen(
                 // 本地库标题
                 item(key = "local_header") {
                     Text(
-                        text = "本地命令库",
+                        text = if (isSelectionMode) {
+                            "已选择 ${selectedLocalIds.size} 项"
+                        } else {
+                            "本地命令库 · ${viewModel.localSort.label}"
+                        },
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 8.dp),
                         style = TextStyle(
                             fontSize = 16.sp,
@@ -223,11 +259,24 @@ fun LocalLibraryListScreen(
                             .clip(RoundedCornerShape(10.dp))
                             .background(color = CHelperTheme.colors.backgroundComponent)
                     ) {
-                        filteredLibraries.forEachIndexed { index, library ->
+                        filteredLibraries.forEachIndexed { index, entry ->
+                            val library = entry.library
+                            val localEntryId = entry.localEntryId
+                            val isSelected = localEntryId in selectedLocalIds
                             Row(
                                 modifier = Modifier
                                     .clickable(onClick = {
-                                        navController.navigate(LocalLibraryShowScreenKey(id = index))
+                                        if (isSelectionMode) {
+                                            selectedLocalIds = if (isSelected) {
+                                                selectedLocalIds - localEntryId
+                                            } else {
+                                                selectedLocalIds + localEntryId
+                                            }
+                                        } else {
+                                            navController.navigate(
+                                                LocalLibraryShowScreenKey(localEntryId = localEntryId)
+                                            )
+                                        }
                                     })
                                     .padding(20.dp, 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -277,17 +326,26 @@ fun LocalLibraryListScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                Icon(
-                                    id = R.drawable.more,
-                                    contentDescription = "更多操作",
-                                    modifier = Modifier
-                                        .align(Alignment.CenterVertically)
-                                        .clickable {
-                                            showLocalMenuIndex = index
-                                        }
-                                        .padding(start = 5.dp)
-                                        .size(24.dp)
-                                )
+                                if (isSelectionMode) {
+                                    Icon(
+                                        id = if (isSelected) R.drawable.check_circle else R.drawable.circle,
+                                        contentDescription = if (isSelected) "取消选择" else "选择",
+                                        modifier = Modifier
+                                            .align(Alignment.CenterVertically)
+                                            .padding(start = 5.dp)
+                                            .size(24.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        id = R.drawable.more,
+                                        contentDescription = "更多操作",
+                                        modifier = Modifier
+                                            .align(Alignment.CenterVertically)
+                                            .clickable { showLocalMenuId = localEntryId }
+                                            .padding(start = 5.dp)
+                                            .size(24.dp)
+                                    )
+                                }
                             }
                             if (index < filteredLibraries.lastIndex) {
                                 Divider(padding = 0.dp)
@@ -316,30 +374,42 @@ fun LocalLibraryListScreen(
     }
 
     // 本地库操作菜单
-    if (showLocalMenuIndex >= 0 && showLocalMenuIndex < filteredLibraries.size) {
-        val library = filteredLibraries[showLocalMenuIndex]
+    val menuLibrary = localLibraryFunctions.orEmpty().firstOrNull {
+        it.localEntryId == showLocalMenuId
+    }
+    if (showLocalMenuId != null && menuLibrary != null) {
+        val library = menuLibrary
+        val localEntryId = requireNotNull(library.localEntryId)
         val menuItems = buildList {
             if (viewModel.isLoggedIn) add("上传到云端" to "upload")
             add("编辑" to "edit")
+            add("复制副本" to "duplicate")
             add("导出" to "export")
             add("删除" to "delete")
             add("关闭" to "close")
         }.toTypedArray()
         ChoosingDialog(
-            onDismissRequest = { showLocalMenuIndex = -1 },
+            onDismissRequest = { showLocalMenuId = null },
             data = menuItems,
             onChoose = { action ->
                 when (action) {
                     "upload" -> {
                         viewModel.uploadToCloud(
                             library = library,
-                            localIndex = showLocalMenuIndex,
+                            localEntryId = localEntryId,
                             localDataStore = localCommandLabDataStore
                         )
                     }
 
                     "edit" -> {
-                        navController.navigate(LibraryEditScreenKey(id = showLocalMenuIndex))
+                        navController.navigate(LibraryEditScreenKey(localEntryId = localEntryId))
+                    }
+
+                    "duplicate" -> {
+                        viewModel.viewModelScope.launch {
+                            localCommandLabDataStore.addLocalLibraryFunction(library.toLocalDuplicate())
+                            Toaster.show("已创建本地副本")
+                        }
                     }
 
                     "export" -> {
@@ -359,7 +429,7 @@ fun LocalLibraryListScreen(
                     }
 
                     "delete" -> {
-                        showDeleteConfirmIndex = showLocalMenuIndex
+                        showDeleteConfirmId = localEntryId
                     }
                 }
             }
@@ -367,17 +437,20 @@ fun LocalLibraryListScreen(
     }
 
     // 删除确认对话框
-    if (showDeleteConfirmIndex >= 0 && showDeleteConfirmIndex < filteredLibraries.size) {
+    val deleteLibrary = localLibraryFunctions.orEmpty().firstOrNull {
+        it.localEntryId == showDeleteConfirmId
+    }
+    if (showDeleteConfirmId != null && deleteLibrary != null) {
         IsConfirmDialog(
-            onDismissRequest = { showDeleteConfirmIndex = -1 },
+            onDismissRequest = { showDeleteConfirmId = null },
             title = "删除本地命令库",
-            content = "确定要删除「${filteredLibraries[showDeleteConfirmIndex].name ?: "未命名"}」吗？此操作不可恢复。",
+            content = "确定要删除「${deleteLibrary.name ?: "未命名"}」吗？此操作不可恢复。",
             confirmText = "删除",
             onConfirm = {
-                val indexToDelete = showDeleteConfirmIndex
-                showDeleteConfirmIndex = -1
+                val idToDelete = showDeleteConfirmId ?: return@IsConfirmDialog
+                showDeleteConfirmId = null
                 viewModel.viewModelScope.launch {
-                    localCommandLabDataStore.removeLocalLibraryFunction(indexToDelete)
+                    localCommandLabDataStore.removeLocalLibraryFunction(idToDelete)
                     Toaster.show("已删除")
                 }
             }
@@ -396,10 +469,10 @@ fun LocalLibraryListScreen(
                         if (itemCount > 0) {
                             val text = getItemAt(0).text.toString()
                             try {
-                                val libraries = Json.decodeFromString<List<LibraryFunction>>(text)
+                                val libraries = decodeLocalLibraryImport(text)
                                 localCommandLabDataStore.addLocalLibraryFunctions(libraries)
-                                Toaster.show("导入成功")
-                            } catch (_: Throwable) {
+                                Toaster.show("已导入 ${libraries.size} 个命令库")
+                            } catch (_: Exception) {
                                 Toaster.show("导入失败")
                             }
                         }
@@ -428,6 +501,86 @@ fun LocalLibraryListScreen(
                         )
                     )
                     Toaster.show("已复制")
+                }
+            }
+        )
+    }
+
+    if (showLocalToolsMenu) {
+        val allVisibleSelected = filteredLibraries.isNotEmpty() &&
+                filteredLibraries.all { it.localEntryId in selectedLocalIds }
+        ChoosingDialog(
+            onDismissRequest = { showLocalToolsMenu = false },
+            data = buildList {
+                add("排序：${viewModel.localSort.label}" to "sort")
+                if (!isSelectionMode) add("进入批量选择" to "selection_mode")
+                if (isSelectionMode) add(
+                    (if (allVisibleSelected) "取消选择当前结果" else "选择当前结果") to "toggle_visible"
+                )
+                if (isSelectionMode && selectedLocalIds.isNotEmpty()) {
+                    add("导出已选 (${selectedLocalIds.size})" to "export_selected")
+                    add("删除已选 (${selectedLocalIds.size})" to "delete_selected")
+                }
+                if (isSelectionMode) add("退出批量选择" to "clear_selection")
+                add("导出全部本地库" to "export_all")
+                add("关闭" to "close")
+            }.toTypedArray(),
+            onChoose = { action ->
+                when (action) {
+                    "sort" -> showSortMenu = true
+                    "selection_mode" -> localSelectionMode = true
+                    "toggle_visible" -> {
+                        val visibleIds = filteredLibraries.map { it.localEntryId }.toSet()
+                        selectedLocalIds = if (allVisibleSelected) {
+                            selectedLocalIds - visibleIds
+                        } else {
+                            selectedLocalIds + visibleIds
+                        }
+                    }
+
+                    "export_selected" -> {
+                        val selected = localLibraryFunctions.orEmpty()
+                            .filter { it.localEntryId in selectedLocalIds }
+                        val output = Json.encodeToString(selected)
+                        viewModel.viewModelScope.launch {
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, output)))
+                            Toaster.show("已导出 ${selected.size} 个命令库")
+                        }
+                    }
+
+                    "delete_selected" -> showBatchDeleteConfirm = true
+                    "clear_selection" -> {
+                        selectedLocalIds = emptySet()
+                        localSelectionMode = false
+                    }
+                    "export_all" -> viewModel.isShowExportDialog = true
+                }
+            }
+        )
+    }
+
+    if (showSortMenu) {
+        ChoosingDialog(
+            onDismissRequest = { showSortMenu = false },
+            data = LocalLibrarySort.entries.map { it.label to it.name }.toTypedArray(),
+            onChoose = { value -> viewModel.localSort = LocalLibrarySort.valueOf(value) }
+        )
+    }
+
+    if (showBatchDeleteConfirm && selectedLocalIds.isNotEmpty()) {
+        IsConfirmDialog(
+            onDismissRequest = { showBatchDeleteConfirm = false },
+            title = "批量删除本地命令库",
+            content = "确定删除已选择的 ${selectedLocalIds.size} 个命令库吗？此操作不可恢复。",
+            confirmText = "全部删除",
+            onConfirm = {
+                val ids = selectedLocalIds
+                selectedLocalIds = emptySet()
+                localSelectionMode = false
+                showBatchDeleteConfirm = false
+                viewModel.viewModelScope.launch {
+                    val count = localCommandLabDataStore.removeLocalLibraryFunctions(ids)
+                    Toaster.show("已删除 $count 个命令库")
                 }
             }
         )
@@ -614,6 +767,11 @@ private fun UserCloudLibrariesSection(
                 icon = R.drawable.upload,
                 label = "上传指令",
                 onClick = { navController.navigate(CPLUploadScreenKey()) }
+            )
+            QuickActionButton(
+                icon = R.drawable.ic_heart,
+                label = "创作季",
+                onClick = { navController.navigate(ActivityCenterScreenKey()) }
             )
             // 创作者主页按钮
             QuickActionButton(

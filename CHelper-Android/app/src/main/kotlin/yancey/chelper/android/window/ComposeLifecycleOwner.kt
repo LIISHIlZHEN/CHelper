@@ -19,6 +19,9 @@
 package yancey.chelper.android.window
 
 import android.view.View
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.OnBackPressedDispatcherOwner
+import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -34,11 +37,13 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 /**
  * copy form: https://github.com/Petterpx/FloatingX/blob/main/floatingx_compose/src/main/java/com/petterp/floatingx/compose/FxComposeLifecycleOwner.kt
  */
-class ComposeLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+class ComposeLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner,
+    OnBackPressedDispatcherOwner {
 
     private val lifecycleRegistry: LifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
     private val store = ViewModelStore()
+    override val onBackPressedDispatcher = OnBackPressedDispatcher()
 
     override val lifecycle: Lifecycle
         get() = lifecycleRegistry
@@ -83,6 +88,7 @@ class ComposeLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateReg
             it.setViewTreeLifecycleOwner(this)
             it.setViewTreeViewModelStoreOwner(this)
             it.setViewTreeSavedStateRegistryOwner(this)
+            it.setViewTreeOnBackPressedDispatcherOwner(this)
         } ?: return
     }
 
@@ -91,6 +97,7 @@ class ComposeLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateReg
             it.setViewTreeLifecycleOwner(null)
             it.setViewTreeViewModelStoreOwner(null)
             it.setViewTreeSavedStateRegistryOwner(null)
+            it.setTag(androidx.activity.R.id.view_tree_on_back_pressed_dispatcher_owner, null)
         } ?: return
     }
 }

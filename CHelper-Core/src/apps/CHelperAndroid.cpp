@@ -248,6 +248,17 @@ Java_yancey_chelper_core_CHelperCore_getStructure0(
     return u16string2jstring(env, core->getStructure());
 }
 
+extern "C" [[maybe_unused]] JNIEXPORT jint JNICALL
+Java_yancey_chelper_core_CHelperCore_getNodeCount0(
+        [[maybe_unused]] JNIEnv *env, [[maybe_unused]] jobject thiz, jlong pointer) {
+    auto *core = reinterpret_cast<CHelper::CHelperCore *>(pointer);
+    if (core == nullptr) [[unlikely]] {
+        SPDLOG_WARN("call Java_yancey_chelper_core_CHelperCore_getNodeCount0 when core is nullptr");
+        return 0;
+    }
+    return static_cast<jint>(core->getNodeCount());
+}
+
 extern "C" [[maybe_unused]] JNIEXPORT jobject JNICALL
 Java_yancey_chelper_core_CHelperCore_onSuggestionClick0(
         JNIEnv *env, [[maybe_unused]] jobject thiz, jlong pointer, jint which) {

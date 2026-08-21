@@ -30,6 +30,7 @@
         <activity
             android:name=".android.activity.HomeActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
 
             <intent-filter>
@@ -44,6 +45,34 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="um.6836aa2bbc47b67d8374e464" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="commandlab"
+                    android:pathPrefix="/library"
+                    android:scheme="chelper" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="abyssous.site"
+                    android:pathPrefix="/app/library"
+                    android:scheme="https" />
+                <data
+                    android:host="www.abyssous.site"
+                    android:pathPrefix="/app/library"
+                    android:scheme="https" />
             </intent-filter>
 
         </activity>

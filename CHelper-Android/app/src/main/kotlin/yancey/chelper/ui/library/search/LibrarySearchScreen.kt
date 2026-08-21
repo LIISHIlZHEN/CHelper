@@ -214,13 +214,15 @@ fun LibrarySearchScreen(
                                     library = lib,
                                     isPrivateOrLocal = true,
                                     onClick = {
-                                        lib.id?.let { id ->
-                                            // 根据标识判断是本地包还是私有库
-                                            if (lib.authorName == "[本地包]") {
+                                        // 根据标识判断是本地包还是私有库
+                                        if (lib.authorName == "[本地包]") {
+                                            lib.localEntryId?.let { localEntryId ->
                                                 navController.navigate(
-                                                    LocalLibraryShowScreenKey(id = id)
+                                                    LocalLibraryShowScreenKey(localEntryId = localEntryId)
                                                 )
-                                            } else {
+                                            }
+                                        } else {
+                                            lib.id?.let { id ->
                                                 navController.navigate(
                                                     PublicLibraryShowScreenKey(
                                                         id = id,

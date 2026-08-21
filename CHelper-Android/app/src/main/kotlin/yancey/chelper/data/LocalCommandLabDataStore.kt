@@ -34,18 +34,44 @@ import kotlinx.serialization.json.Json
 import yancey.chelper.network.library.data.LibraryFunction
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.UUID
 
 private val Context.localLibraryDataStore: DataStore<LocalLibraryData> by dataStore(
     fileName = "local_library.json",
     serializer = LocalLibrarySerializer,
     produceMigrations = {
-        listOf(LocalLibraryDataMigrationToV75(it))
+        listOf(
+            LocalLibraryDataMigrationToV75(it),
+            LocalLibraryStableIdMigration()
+        )
     }
+)
+
+private val Context.localLibraryEditDraftDataStore: DataStore<LocalLibraryEditDraftData> by dataStore(
+    fileName = "local_library_edit_drafts.json",
+    serializer = LocalLibraryEditDraftSerializer
 )
 
 @Serializable
 data class LocalLibraryData(
     val functions: List<LibraryFunction> = emptyList()
+)
+
+@Serializable
+data class LocalLibraryEditDraftData(
+    val drafts: Map<String, LocalLibraryEditDraft> = emptyMap()
+)
+
+@Serializable
+data class LocalLibraryEditDraft(
+    val name: String = "",
+    val version: String = "",
+    val description: String = "",
+    val tags: String = "",
+    val commands: String = "",
+    val autoSync: Boolean = false,
+    val useV2: Boolean = true,
+    val updatedAt: Long = 0L
 )
 
 object LocalLibrarySerializer : Serializer<LocalLibraryData> {
@@ -73,6 +99,25 @@ object LocalLibrarySerializer : Serializer<LocalLibraryData> {
     }
 }
 
+object LocalLibraryEditDraftSerializer : Serializer<LocalLibraryEditDraftData> {
+    override val defaultValue: LocalLibraryEditDraftData = LocalLibraryEditDraftData()
+
+    override suspend fun readFrom(input: InputStream): LocalLibraryEditDraftData =
+        try {
+            withContext(Dispatchers.IO) {
+                Json.decodeFromString<LocalLibraryEditDraftData>(input.readBytes().decodeToString())
+            }
+        } catch (serialization: SerializationException) {
+            throw CorruptionException("Unable to read LocalLibraryEditDraftData", serialization)
+        }
+
+    override suspend fun writeTo(t: LocalLibraryEditDraftData, output: OutputStream) {
+        withContext(Dispatchers.IO) {
+            output.write(Json.encodeToString(t).encodeToByteArray())
+        }
+    }
+}
+
 class LocalCommandLabDataStore(private val context: Context) {
 
     fun localLibraryFunctions(): Flow<List<LibraryFunction>> =
@@ -85,22 +130,95 @@ class LocalCommandLabDataStore(private val context: Context) {
             } else null
         }
 
-    suspend fun addLocalLibraryFunction(function: LibraryFunction) {
-        context.localLibraryDataStore.updateData { it.copy(functions = it.functions + function) }
+    fun localLibraryFunction(localEntryId: String?): Flow<LibraryFunction?> =
+        context.localLibraryDataStore.data.map { data ->
+            localEntryId?.let { target -> data.functions.firstOrNull { it.localEntryId == target } }
+        }
+
+    fun localLibraryEditDraft(key: String): Flow<LocalLibraryEditDraft?> =
+        context.localLibraryEditDraftDataStore.data.map { it.drafts[key] }
+
+    suspend fun saveLocalLibraryEditDraft(key: String, draft: LocalLibraryEditDraft) {
+        context.localLibraryEditDraftDataStore.updateData {
+            it.copy(drafts = it.drafts + (key to draft))
+        }
     }
 
-    suspend fun addLocalLibraryFunctions(functions: List<LibraryFunction>) {
-        context.localLibraryDataStore.updateData { it.copy(functions = it.functions + functions) }
+    suspend fun clearLocalLibraryEditDraft(key: String) {
+        context.localLibraryEditDraftDataStore.updateData {
+            it.copy(drafts = it.drafts - key)
+        }
+    }
+
+    suspend fun addLocalLibraryFunction(function: LibraryFunction): String {
+        var assignedId = ""
+        context.localLibraryDataStore.updateData { data ->
+            val usedIds = data.functions.mapNotNull { it.localEntryId }.toMutableSet()
+            assignedId = uniqueLocalEntryId(function.localEntryId, usedIds)
+            data.copy(functions = data.functions + function.copy(localEntryId = assignedId))
+        }
+        return assignedId
+    }
+
+    suspend fun addLocalLibraryFunctions(functions: List<LibraryFunction>): List<String> {
+        val assignedIds = mutableListOf<String>()
+        context.localLibraryDataStore.updateData { data ->
+            val usedIds = data.functions.mapNotNull { it.localEntryId }.toMutableSet()
+            val normalized = functions.map { function ->
+                val assignedId = uniqueLocalEntryId(function.localEntryId, usedIds)
+                assignedIds += assignedId
+                function.copy(localEntryId = assignedId)
+            }
+            data.copy(functions = data.functions + normalized)
+        }
+        return assignedIds
     }
 
     suspend fun updateLocalLibraryFunction(id: Int, function: LibraryFunction) {
         context.localLibraryDataStore.updateData {
             val newFunctions = it.functions.toMutableList()
             if (id in newFunctions.indices) {
-                newFunctions[id] = function
+                val stableId = newFunctions[id].localEntryId ?: function.localEntryId
+                newFunctions[id] = function.copy(localEntryId = stableId)
             }
             it.copy(functions = newFunctions)
         }
+    }
+
+    suspend fun updateLocalLibraryFunction(localEntryId: String, function: LibraryFunction): Boolean {
+        var updated = false
+        context.localLibraryDataStore.updateData { data ->
+            val newFunctions = data.functions.map { existing ->
+                if (existing.localEntryId == localEntryId) {
+                    updated = true
+                    function.copy(localEntryId = localEntryId)
+                } else {
+                    existing
+                }
+            }
+            data.copy(functions = newFunctions)
+        }
+        return updated
+    }
+
+    suspend fun markLocalLibrarySynced(
+        localEntryId: String,
+        uuid: String? = null,
+        syncedLibrary: LibraryFunction? = null
+    ): Boolean {
+        var updated = false
+        context.localLibraryDataStore.updateData { data ->
+            val newFunctions = data.functions.map { existing ->
+                if (existing.localEntryId == localEntryId) {
+                    updated = true
+                    existing.withLocalSyncResult(uuid, syncedLibrary)
+                } else {
+                    existing
+                }
+            }
+            data.copy(functions = newFunctions)
+        }
+        return updated
     }
 
     suspend fun removeLocalLibraryFunction(id: Int) {
@@ -112,6 +230,79 @@ class LocalCommandLabDataStore(private val context: Context) {
             it.copy(functions = newFunctions)
         }
     }
+
+    suspend fun removeLocalLibraryFunction(localEntryId: String): Boolean {
+        var removed = false
+        context.localLibraryDataStore.updateData { data ->
+            val newFunctions = data.functions.filterNot {
+                val matches = it.localEntryId == localEntryId
+                if (matches) removed = true
+                matches
+            }
+            data.copy(functions = newFunctions)
+        }
+        return removed
+    }
+
+    suspend fun removeLocalLibraryFunctions(localEntryIds: Set<String>): Int {
+        if (localEntryIds.isEmpty()) return 0
+        var removedCount = 0
+        context.localLibraryDataStore.updateData { data ->
+            val newFunctions = data.functions.filterNot {
+                val matches = it.localEntryId in localEntryIds
+                if (matches) removedCount++
+                matches
+            }
+            data.copy(functions = newFunctions)
+        }
+        return removedCount
+    }
+
+    private fun uniqueLocalEntryId(candidate: String?, usedIds: MutableSet<String>): String {
+        val validCandidate = candidate?.takeIf { it.isNotBlank() && it !in usedIds }
+        val assigned = validCandidate ?: generateSequence { UUID.randomUUID().toString() }
+            .first { it !in usedIds }
+        usedIds += assigned
+        return assigned
+    }
+}
+
+internal fun LibraryFunction.withLocalSyncResult(
+    uuid: String?,
+    syncedLibrary: LibraryFunction?
+): LibraryFunction {
+    val matchesSyncedSnapshot = syncedLibrary == null ||
+            name == syncedLibrary.name &&
+            version == syncedLibrary.version &&
+            note == syncedLibrary.note &&
+            tags == syncedLibrary.tags &&
+            content == syncedLibrary.content &&
+            localIsV2 == syncedLibrary.localIsV2
+    return copy(
+        uuid = uuid?.takeIf(String::isNotBlank) ?: this.uuid,
+        localUnsynced = !matchesSyncedSnapshot
+    )
+}
+
+class LocalLibraryStableIdMigration : DataMigration<LocalLibraryData> {
+    override suspend fun shouldMigrate(currentData: LocalLibraryData): Boolean {
+        val ids = currentData.functions.map { it.localEntryId }
+        return ids.any { it.isNullOrBlank() } || ids.filterNotNull().distinct().size != ids.filterNotNull().size
+    }
+
+    override suspend fun migrate(currentData: LocalLibraryData): LocalLibraryData {
+        val usedIds = mutableSetOf<String>()
+        val migrated = currentData.functions.map { function ->
+            val existing = function.localEntryId?.takeIf { it.isNotBlank() && it !in usedIds }
+            val assigned = existing ?: generateSequence { UUID.randomUUID().toString() }
+                .first { it !in usedIds }
+            usedIds += assigned
+            function.copy(localEntryId = assigned)
+        }
+        return currentData.copy(functions = migrated)
+    }
+
+    override suspend fun cleanUp() = Unit
 }
 
 /**

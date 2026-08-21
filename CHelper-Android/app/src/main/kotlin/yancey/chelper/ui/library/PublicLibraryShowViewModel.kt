@@ -32,6 +32,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import yancey.chelper.network.ServiceManager
 import yancey.chelper.network.library.data.BaseResult
 import yancey.chelper.network.library.data.LibraryFunction
+import yancey.chelper.network.library.util.LoginUtil
 
 class PublicLibraryShowViewModel : ViewModel() {
     var library by mutableStateOf(LibraryFunction())
@@ -43,6 +44,7 @@ class PublicLibraryShowViewModel : ViewModel() {
     // 点赞状态独立于 library 对象，防止点赞触发命令可视化的完整重绘
     var likeCount by mutableIntStateOf(0)
     var isLiked by mutableStateOf(false)
+    var isFavorited by mutableStateOf(false)
 
     /** 删除成功后置 true，由 Screen 层观察此状态来安全执行 popBackStack */
     var deleteSuccess by mutableStateOf(false)
@@ -78,6 +80,7 @@ class PublicLibraryShowViewModel : ViewModel() {
                     library = response.data!!
                     likeCount = library.likeCount ?: 0
                     isLiked = library.isLiked == true
+                    isFavorited = library.isFavorited == true
                 } else {
                     errorMessage = response.message ?: "加载失败"
                 }
@@ -92,7 +95,7 @@ class PublicLibraryShowViewModel : ViewModel() {
     /**
      * 切换点赞状态
      * 调 like API 后刷新本地计数
-     * like 接口是 toggle 行为：已赞则取消、未赞则点赞
+     * like 接口已赞则不管、未赞则点赞
      */
     fun toggleLike(id: Int) {
         viewModelScope.launch {
@@ -104,7 +107,12 @@ class PublicLibraryShowViewModel : ViewModel() {
                     val likeData = result.data!!
                     likeCount = likeData.likeCount ?: likeCount
                     isLiked = likeData.isLiked == true
-                    actionMessage = if (isLiked) "已点赞" else "已取消点赞"
+                    val bonus = likeData.dailyFirstLikePoints ?: likeData.pointsAwarded
+                    actionMessage = if (bonus != null && bonus > 0) {
+                        "点赞成功 · 每日首次点赞 +${formatPoints(bonus)} PTS"
+                    } else {
+                        "已点赞"
+                    }
                 } else {
                     actionMessage = result.message ?: "操作失败"
                 }
@@ -174,6 +182,86 @@ class PublicLibraryShowViewModel : ViewModel() {
             } catch (e: Exception) {
                 actionMessage = "网络错误: ${e.message}"
             }
+        }
+    }
+
+    fun toggleFavorite(id: Int) {
+        if (!LoginUtil.isLoggedIn || LoginUtil.currentUser?.isGuest == true) {
+            actionMessage = "请先登录正式账号使用收藏夹"
+            return
+        }
+        viewModelScope.launch {
+            if (isPrivate) {
+                actionMessage = "私有库不能加入收藏夹"
+                return@launch
+            }
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    ServiceManager.COMMAND_LAB_USER_SERVICE.toggleFavorite(id)
+                }
+                if (result.isSuccess() && result.data != null) {
+                    isFavorited = result.data!!.isFavorited == true
+                    library = library.copy(isFavorited = isFavorited)
+                    actionMessage = result.message ?: if (isFavorited) "已加入收藏夹" else "已取消收藏"
+                } else {
+                    actionMessage = result.message ?: "收藏操作失败"
+                }
+            } catch (e: Exception) {
+                actionMessage = "网络错误: ${e.message}"
+            }
+        }
+    }
+
+    /** 最近一次成功生成的分享链接，由 Screen 复制/拉起系统分享后清空。 */
+    var pendingShareUrl by mutableStateOf<String?>(null)
+    var isSharing by mutableStateOf(false)
+
+    /**
+     * 生成云端公开库分享链接。
+     * 默认 import_to_local=false：对方从外链进入只看到云端详情，不自动导入本地。
+     */
+    fun createShareLink(id: Int, importToLocal: Boolean = false) {
+        if (!LoginUtil.isLoggedIn || LoginUtil.currentUser?.isGuest == true) {
+            actionMessage = "请先登录正式账号再分享"
+            return
+        }
+        if (isPrivate || library.isPublish == false) {
+            actionMessage = "仅公开库可生成分享链接"
+            return
+        }
+        if (isSharing) return
+        viewModelScope.launch {
+            isSharing = true
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    ServiceManager.COMMAND_LAB_USER_SERVICE.createLibraryShare(
+                        id = id,
+                        importToLocal = importToLocal
+                    )
+                }
+                if (result.isSuccess()) {
+                    val url = result.data?.shareUrl?.takeIf { it.isNotBlank() }
+                    if (url != null) {
+                        pendingShareUrl = url
+                        actionMessage = result.message ?: "分享链接已生成"
+                    } else {
+                        actionMessage = "分享链接为空"
+                    }
+                } else {
+                    actionMessage = result.message ?: "生成分享链接失败"
+                }
+            } catch (e: Exception) {
+                actionMessage = "网络错误: ${e.message}"
+            } finally {
+                isSharing = false
+            }
+        }
+    }
+
+    companion object {
+        private fun formatPoints(value: Double): String {
+            val whole = value.toLong()
+            return if (value == whole.toDouble()) whole.toString() else value.toString()
         }
     }
 }

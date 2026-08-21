@@ -43,14 +43,12 @@ fun LibraryMainScreen(
     navController: NavHostController,
     isFloatingWindow: Boolean = false
 ) {
-    // 三 tab 砍到两 tab：去掉独立的"我的"账户中心 tab，账户管理改走"我的库"页面
-    // 右上角的账户菜单按钮（直接进 CPLUserScreen）。这样两 tab 命名上也更利落：
-    // "云端"（公共社区） vs "我的库"（个人云端 + 本地 + 账户入口）
+
     var selectedTab by rememberSaveable { mutableStateOf(0) }
-    // 未读消息数：之前挂在"我的" tab 的红点，账户 tab 被砍后挪到"我的库" bottom nav 上提示
+    // 未读消息数
     var unreadCount by remember { mutableIntStateOf(0) }
 
-    // 悬浮窗模式下强制锁在"云端" tab，因为悬浮窗里不会让用户编辑本地库 / 改账号
+    // 悬浮窗模式下tab只允许云端
     if (isFloatingWindow) {
         selectedTab = 0
     }

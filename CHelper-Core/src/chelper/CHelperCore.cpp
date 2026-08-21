@@ -26,6 +26,82 @@
 
 namespace CHelper {
 
+    namespace {
+
+        bool hasSemanticContent(const ASTNode &astNode) {
+            if (astNode.isError()) {
+                return false;
+            }
+            bool result = false;
+            astNode.tokens.forEach([&result](const Token &token) {
+                if (token.type != TokenType::SPACE && token.type != TokenType::LF) {
+                    result = true;
+                }
+            });
+            return result;
+        }
+
+        size_t countSemanticNodes(const ASTNode &astNode);
+
+        size_t countChildNodes(const ASTNode &astNode) {
+            if (astNode.mode == ASTNodeMode::OR) {
+                if (astNode.whichBest >= astNode.childNodes.size()) [[unlikely]] {
+                    return 0;
+                }
+                return countSemanticNodes(astNode.childNodes[astNode.whichBest]);
+            }
+            if (astNode.mode == ASTNodeMode::AND) {
+                size_t result = 0;
+                for (const auto &childNode: astNode.childNodes) {
+                    result += countSemanticNodes(childNode);
+                }
+                return result;
+            }
+            return 0;
+        }
+
+        size_t countWrappedNode(const ASTNode &astNode) {
+            if (astNode.childNodes.empty()) [[unlikely]] {
+                return 0;
+            }
+            const ASTNode &currentNode = astNode.childNodes[0];
+            size_t result;
+            switch (currentNode.node.nodeTypeId) {
+                case Node::NodeTypeId::COMMAND:
+                case Node::NodeTypeId::REPEAT:
+                    result = countSemanticNodes(currentNode);
+                    break;
+                case Node::NodeTypeId::LF:
+                    result = 0;
+                    break;
+                default:
+                    result = hasSemanticContent(currentNode) ? 1 : 0;
+                    break;
+            }
+            for (size_t i = 1; i < astNode.childNodes.size(); ++i) {
+                result += countSemanticNodes(astNode.childNodes[i]);
+            }
+            return result;
+        }
+
+        size_t countSemanticNodes(const ASTNode &astNode) {
+            if (astNode.node.nodeTypeId == Node::NodeTypeId::WRAPPED) {
+                return countWrappedNode(astNode);
+            }
+            if (astNode.node.nodeTypeId == Node::NodeTypeId::COMMAND) {
+                if (astNode.id == ASTNodeId::NODE_COMMAND_COMMAND_NAME) {
+                    return hasSemanticContent(astNode) ? 1 : 0;
+                }
+                // 未知命令只有命令名子节点，不能算作已经匹配的语义节点。
+                if (astNode.id == ASTNodeId::NODE_COMMAND_COMMAND && astNode.childNodes.size() < 2) {
+                    return 0;
+                }
+            }
+            return countChildNodes(astNode);
+        }
+
+    }// namespace
+
     CHelperCore::CHelperCore(std::unique_ptr<CPack> cpack, ASTNode astNode)
         : cpack(std::move(cpack)),
           astNode(std::move(astNode)) {}
@@ -136,6 +212,10 @@ namespace CHelper {
 
     [[nodiscard]] std::u16string CHelperCore::getStructure() const {
         return CommandStructure::getStructure(astNode);
+    }
+
+    [[nodiscard]] size_t CHelperCore::getNodeCount() const {
+        return countSemanticNodes(astNode);
     }
 
     [[nodiscard]] SyntaxHighlight::SyntaxResult CHelperCore::getSyntaxResult() const {

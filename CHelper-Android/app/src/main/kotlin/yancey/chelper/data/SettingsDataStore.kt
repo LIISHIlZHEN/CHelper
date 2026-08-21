@@ -72,6 +72,8 @@ data class Settings(
     val syntaxHighlightMaxLength: Int? = null,
     val publicLibraryHomeRecommend: Boolean? = null,
     val isEnableMcdHighlight: Boolean? = null,
+    val isEnableLoongFlowImportMiniIcon: Boolean? = null,
+    val hasShownCommandEditorHint: Boolean? = null,
 )
 
 object SettingsSerializer : Serializer<Settings> {
@@ -250,6 +252,26 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setIsEnableMcdHighlight(value: Boolean) {
         context.settingsDataStore.updateData { it.copy(isEnableMcdHighlight = value) }
+    }
+
+    fun isEnableLoongFlowImportMiniIcon(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it.isEnableLoongFlowImportMiniIcon ?: true }
+
+    suspend fun setIsEnableLoongFlowImportMiniIcon(value: Boolean) {
+        context.settingsDataStore.updateData { it.copy(isEnableLoongFlowImportMiniIcon = value) }
+    }
+
+    suspend fun claimCommandEditorHint(): Boolean {
+        var claimed = false
+        context.settingsDataStore.updateData {
+            if (it.hasShownCommandEditorHint == true) {
+                it
+            } else {
+                claimed = true
+                it.copy(hasShownCommandEditorHint = true)
+            }
+        }
+        return claimed
     }
 }
 

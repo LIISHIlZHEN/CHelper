@@ -18,6 +18,7 @@
 
 package yancey.chelper.android.activity
 
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
@@ -25,7 +26,10 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.hjq.permissions.XXPermissions
@@ -33,12 +37,16 @@ import com.hjq.permissions.permission.PermissionLists
 import com.hjq.toast.Toaster
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import yancey.chelper.android.util.MonitorUtil
 import yancey.chelper.android.window.FloatingWindowManager
 import yancey.chelper.data.BackgroundStore
 import yancey.chelper.ui.NavHost
+import yancey.chelper.ui.CommandLabDeepLink
+import yancey.chelper.ui.CommandLabDeepLinkParser
+import yancey.chelper.ui.openCommandLabDeepLink
 import java.io.BufferedInputStream
 import java.io.IOException
 
@@ -51,6 +59,7 @@ class HomeActivity : BaseComposeActivity() {
     private lateinit var onBackPressedCallback: OnBackPressedCallback
     private lateinit var photoPicker: ActivityResultLauncher<PickVisualMediaRequest>
     private var isShowSavingBackgroundDialog = mutableStateOf(false)
+    private var pendingDeepLink by mutableStateOf<CommandLabDeepLink?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,9 +74,19 @@ class HomeActivity : BaseComposeActivity() {
         onBackPressedDispatcher.addCallback(onBackPressedCallback)
         photoPicker =
             registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { setBackground(it) }
+        queueDeepLink(intent)
         setContent {
+            val navController = rememberNavController()
+            val deepLink = pendingDeepLink
+            LaunchedEffect(deepLink) {
+                deepLink?.let {
+                    navController.currentBackStackEntryFlow.first()
+                    navController.openCommandLabDeepLink(it)
+                    pendingDeepLink = null
+                }
+            }
             NavHost(
-                navController = rememberNavController(),
+                navController = navController,
                 floatingWindowManager = floatingWindowManager,
                 chooseBackground = this::chooseBackground,
                 restoreBackground = this::restoreBackground,
@@ -77,9 +96,21 @@ class HomeActivity : BaseComposeActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        queueDeepLink(intent)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         floatingWindowManager.stopFloatingWindow()
+    }
+
+    private fun queueDeepLink(intent: Intent?) {
+        CommandLabDeepLinkParser.parse(intent?.dataString)?.let {
+            pendingDeepLink = it
+        }
     }
 
     private fun chooseBackground() {

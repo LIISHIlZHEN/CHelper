@@ -46,7 +46,7 @@ class CHelperCoreInstrumentedTest {
     }
 
     @Test
-    fun `fromAssets 应当成功创建并标记为内置资源包`() {
+    fun fromAssetsCreatesBuiltinResourceCore() {
         withCore { core ->
             assertTrue("从 assets 加载的 core.isAssets 必须为 true", core.isAssets)
             assertEquals(cpackPath, core.path)
@@ -72,7 +72,7 @@ class CHelperCoreInstrumentedTest {
     }
 
     @Test
-    fun `close 之后再调用接口应当静默返回不崩溃`() {
+    fun closedCoreApisRemainSafe() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         val core = try {
             CHelperCore.fromAssets(ctx.assets, cpackPath)
@@ -84,7 +84,23 @@ class CHelperCoreInstrumentedTest {
         // 关掉后 pointer == 0，所有 getter 都应走早退分支
         // 这是防 use-after-free 的最后一道闸，必须保住
         assertEquals(0, core.suggestionsSize)
+        assertEquals(0, core.nodeCount)
         // 多次 close 也得幂等，否则会触发 release0 的 double-free
         core.close()
+    }
+
+    @Test
+    fun semanticNodeCountCrossesEditorHintThresholdAtNineteen() {
+        withCore { core ->
+            val eighteenNodes =
+                "execute as @a as @a as @a as @a as @a as @a as @a run say hi"
+            core.onTextChanged(eighteenNodes, eighteenNodes.length)
+            assertEquals(18, core.nodeCount)
+
+            val nineteenNodes =
+                "execute as @a as @a as @a as @a as @a as @a as @a as @a run list"
+            core.onTextChanged(nineteenNodes, nineteenNodes.length)
+            assertEquals(19, core.nodeCount)
+        }
     }
 }

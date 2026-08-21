@@ -67,6 +67,8 @@ namespace CHelper {
 
         [[nodiscard]] std::u16string getStructure() const;
 
+        [[nodiscard]] size_t getNodeCount() const;
+
         [[nodiscard]] SyntaxHighlight::SyntaxResult getSyntaxResult() const;
 
         [[nodiscard]] std::optional<std::pair<std::u16string, size_t>> onSuggestionClick(size_t which);

@@ -82,6 +82,7 @@ class FloatingWindowManager(
     private var floatBackPressedOwner: FloatWindowBackPressedOwner? = null
     private var navController: NavController? = null
     private var theme by mutableStateOf(CHelperTheme.Theme.Light)
+    private var isMainViewVisible by mutableStateOf(false)
 
     val isUsingFloatingWindow: Boolean
         /**
@@ -176,6 +177,7 @@ class FloatingWindowManager(
                             navController = navController,
                             shutdown = { stopFloatingWindow() },
                             hideView = { iconView.callOnClick() },
+                            isWindowVisible = isMainViewVisible,
                         )
                     }
                 }
@@ -230,14 +232,17 @@ class FloatingWindowManager(
                     composeLifecycleOwner?.onPause()
                     mainView.clearFocus()
                     windowViewVisibility = View.INVISIBLE
+                    isMainViewVisible = false
                 } else {
                     composeLifecycleOwner?.onResume()
                     mainView.requestFocus()
                     windowViewVisibility = View.VISIBLE
+                    isMainViewVisible = true
                 }
             }
         }
         if (mainViewWindow != null && iconViewWindow != null) {
+            isMainViewVisible = false
             mainViewWindow!!.windowViewVisibility = View.INVISIBLE
             mainViewWindow!!.show()
             iconViewWindow!!.show()
@@ -251,6 +256,7 @@ class FloatingWindowManager(
      * 关闭悬浮窗
      */
     fun stopFloatingWindow() {
+        isMainViewVisible = false
         FloatingWindowService.stop(application)
         mainViewWindow.let {
             if (it != null) {

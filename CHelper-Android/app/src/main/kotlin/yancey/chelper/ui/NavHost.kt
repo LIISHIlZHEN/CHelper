@@ -44,6 +44,7 @@ import yancey.chelper.ui.enumeration.EnumerationScreen
 import yancey.chelper.ui.home.HomeScreen
 import yancey.chelper.ui.library.CPLUploadScreen
 import yancey.chelper.ui.library.CPLUserScreen
+import yancey.chelper.ui.library.FavoriteLibraryListScreen
 import yancey.chelper.ui.library.LibraryMainScreen
 import yancey.chelper.ui.library.LocalLibraryEditScreen
 import yancey.chelper.ui.library.LocalLibraryListScreen
@@ -51,6 +52,7 @@ import yancey.chelper.ui.library.LocalLibraryShowScreen
 import yancey.chelper.ui.library.MessageScreen
 import yancey.chelper.ui.library.PublicLibraryListScreen
 import yancey.chelper.ui.library.PublicLibraryShowScreen
+import yancey.chelper.ui.library.activity.ActivityCenterScreen
 import yancey.chelper.ui.library.profile.UserProfileScreen
 import yancey.chelper.ui.library.score.LeaderboardScreen
 import yancey.chelper.ui.library.search.LibrarySearchScreen
@@ -86,12 +88,14 @@ object LocalLibraryListScreenKey
 
 @Serializable
 data class LocalLibraryShowScreenKey(
-    val id: Int
+    val localEntryId: String? = null,
+    val id: Int? = null
 )
 
 @Serializable
 data class LibraryEditScreenKey(
-    val id: Int?
+    val localEntryId: String? = null,
+    val id: Int? = null
 )
 
 @Serializable
@@ -109,7 +113,8 @@ object LibraryMainScreenKey
 @Serializable
 data class PublicLibraryShowScreenKey(
     val id: Int,
-    val isPrivate: Boolean = false
+    val isPrivate: Boolean = false,
+    val importToLocal: Boolean = false
 )
 
 @Serializable
@@ -143,6 +148,14 @@ data class UserProfileScreenKey(
 
 @Serializable
 object MessageScreenKey
+
+@Serializable
+object FavoriteLibraryListScreenKey
+
+@Serializable
+data class ActivityCenterScreenKey(
+    val initialSection: Int = 0
+)
 
 @Composable
 fun NavHost(
@@ -210,11 +223,18 @@ fun NavHost(
         }
         composable<LocalLibraryShowScreenKey> { navBackStackEntry ->
             val localLibraryShow: LocalLibraryShowScreenKey = navBackStackEntry.toRoute()
-            LocalLibraryShowScreen(id = localLibraryShow.id)
+            LocalLibraryShowScreen(
+                localEntryId = localLibraryShow.localEntryId,
+                id = localLibraryShow.id,
+                navController = navController
+            )
         }
         composable<LibraryEditScreenKey> { navBackStackEntry ->
             val localLibraryEdit: LibraryEditScreenKey = navBackStackEntry.toRoute()
-            LocalLibraryEditScreen(id = localLibraryEdit.id)
+            LocalLibraryEditScreen(
+                localEntryId = localLibraryEdit.localEntryId,
+                id = localLibraryEdit.id
+            )
         }
         composable<RawtextScreenKey> {
             RawtextScreen()
@@ -243,7 +263,8 @@ fun NavHost(
             PublicLibraryShowScreen(
                 id = publicLibraryShow.id,
                 isPrivate = publicLibraryShow.isPrivate,
-                navController = navController
+                navController = navController,
+                importToLocal = publicLibraryShow.importToLocal
             )
         }
         composable<LibrarySearchScreenKey> { navBackStackEntry ->
@@ -271,6 +292,13 @@ fun NavHost(
         composable<MessageScreenKey> {
             MessageScreen()
         }
+        composable<FavoriteLibraryListScreenKey> {
+            FavoriteLibraryListScreen(navController = navController)
+        }
+        composable<ActivityCenterScreenKey> { backStackEntry ->
+            val args = backStackEntry.toRoute<ActivityCenterScreenKey>()
+            ActivityCenterScreen(navController = navController, initialSection = args.initialSection)
+        }
     }
     if (isShowSavingBackgroundDialog.value) {
         IsConfirmDialog(
@@ -285,6 +313,7 @@ fun FloatingWindowNavHost(
     navController: NavHostController,
     shutdown: () -> Unit,
     hideView: () -> Unit,
+    isWindowVisible: Boolean,
 ) {
     NavHost(
         navController = navController,
@@ -302,7 +331,8 @@ fun FloatingWindowNavHost(
                 viewModel = viewModel(),
                 navController = navController,
                 shutdown = shutdown,
-                hideView = hideView
+                hideView = hideView,
+                isScreenVisible = isWindowVisible
             )
         }
         composable<HistoryScreenKey> {
@@ -325,11 +355,18 @@ fun FloatingWindowNavHost(
         }
         composable<LocalLibraryShowScreenKey> { navBackStackEntry ->
             val localLibraryShow: LocalLibraryShowScreenKey = navBackStackEntry.toRoute()
-            LocalLibraryShowScreen(id = localLibraryShow.id)
+            LocalLibraryShowScreen(
+                localEntryId = localLibraryShow.localEntryId,
+                id = localLibraryShow.id,
+                navController = navController
+            )
         }
         composable<LibraryEditScreenKey> { navBackStackEntry ->
             val localLibraryEdit: LibraryEditScreenKey = navBackStackEntry.toRoute()
-            LocalLibraryEditScreen(id = localLibraryEdit.id)
+            LocalLibraryEditScreen(
+                localEntryId = localLibraryEdit.localEntryId,
+                id = localLibraryEdit.id
+            )
         }
         composable<RawtextScreenKey> {
             RawtextScreen()
@@ -355,7 +392,12 @@ fun FloatingWindowNavHost(
         }
         composable<PublicLibraryShowScreenKey> { navBackStackEntry ->
             val customKey = navBackStackEntry.toRoute<PublicLibraryShowScreenKey>()
-            PublicLibraryShowScreen(customKey.id, customKey.isPrivate, navController)
+            PublicLibraryShowScreen(
+                id = customKey.id,
+                isPrivate = customKey.isPrivate,
+                navController = navController,
+                importToLocal = customKey.importToLocal
+            )
         }
         composable<LibrarySearchScreenKey> { navBackStackEntry ->
             val args: LibrarySearchScreenKey = navBackStackEntry.toRoute()
@@ -381,6 +423,13 @@ fun FloatingWindowNavHost(
         }
         composable<MessageScreenKey> {
             MessageScreen()
+        }
+        composable<FavoriteLibraryListScreenKey> {
+            FavoriteLibraryListScreen(navController = navController)
+        }
+        composable<ActivityCenterScreenKey> { backStackEntry ->
+            val args = backStackEntry.toRoute<ActivityCenterScreenKey>()
+            ActivityCenterScreen(navController = navController, initialSection = args.initialSection)
         }
     }
 }

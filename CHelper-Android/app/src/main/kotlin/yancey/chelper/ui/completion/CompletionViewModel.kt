@@ -52,6 +52,7 @@ import kotlin.math.min
 class CompletionViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
     var isShowMenu by mutableStateOf(false)
+    var isCommandEditorMode by mutableStateOf(false)
     var command by mutableStateOf(TextFieldState())
     var structure by mutableStateOf<String?>(null)
     var paramHint by mutableStateOf<String?>(null)
@@ -59,6 +60,7 @@ class CompletionViewModel(application: Application) : AndroidViewModel(applicati
     var suggestionsSize by mutableIntStateOf(0)
     var suggestionsUpdateTimes by mutableIntStateOf(0)
     var syntaxHighlightTokens by mutableStateOf<IntArray?>(null)
+    var nodeCount by mutableIntStateOf(0)
     var core: CHelperCore? = null
     var lastInput: SelectedString = SelectedString("", 0, 0)
     var syntaxHighlightMaxLength = 20000
@@ -111,6 +113,7 @@ class CompletionViewModel(application: Application) : AndroidViewModel(applicati
                 syntaxHighlightTokens = null
                 // 通知内核
                 it?.onTextChanged(selectedString.text, 0)
+                nodeCount = 0
                 // 更新补全提示
                 suggestionsSize = it?.suggestionsSize ?: 0
                 suggestionsUpdateTimes++
@@ -150,6 +153,7 @@ class CompletionViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 // 更新命令语法结构
                 structure = it.structure
+                nodeCount = it.nodeCount
                 // 更新错误原因
                 if (isUpdateErrorReason) {
                     errorReasons = it.errorReasons
@@ -191,6 +195,7 @@ class CompletionViewModel(application: Application) : AndroidViewModel(applicati
         if (cpackBranch.isEmpty()) {
             core?.close()
             core = null
+            nodeCount = 0
             return
         }
         var cpackPath: String? = null

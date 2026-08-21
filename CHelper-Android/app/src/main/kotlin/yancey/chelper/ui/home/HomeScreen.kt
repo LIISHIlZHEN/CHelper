@@ -18,6 +18,7 @@
 
 package yancey.chelper.ui.home
 
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -46,6 +48,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import androidx.core.net.toUri
 import com.hjq.permissions.XXPermissions
 import com.hjq.permissions.permission.PermissionLists
 import com.hjq.toast.Toaster
@@ -96,6 +99,29 @@ fun HomeScreen(
         .collectAsState(initial = true)
     val publicLibraryMinVersion by settingsDataStore.publicLibraryMinVersion()
         .collectAsState(initial = 0)
+
+    DisposableEffect(viewModel.pendingAnnouncementUrl) {
+        viewModel.pendingAnnouncementUrl?.let { url ->
+            viewModel.pendingAnnouncementUrl = null
+            runCatching {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }.onFailure {
+                Toaster.show("无法打开链接")
+            }
+        }
+        onDispose { }
+    }
+
+    DisposableEffect(viewModel.announcementLinkMessage) {
+        viewModel.announcementLinkMessage?.let { message ->
+            viewModel.announcementLinkMessage = null
+            Toaster.show(message)
+        }
+        onDispose { }
+    }
+
     RootView {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -312,7 +338,9 @@ fun HomeScreen(
                 if (!viewModel.announcement!!.isForce!!) {
                     viewModel.ignoreCurrentAnnouncement()
                 }
-            }
+            },
+            contentLinksEnabled = true,
+            onContentLinkClick = viewModel::openAnnouncementLink,
         )
     }
     if (viewModel.isShowCommandLabVersionDialog) {

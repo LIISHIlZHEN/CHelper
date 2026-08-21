@@ -45,10 +45,11 @@ def build_web_core(toolchain_dir: str):
         ["cmake", "--build", build_directory, "--target", "CHelperWeb"],
         check=True,
     )
+    # Link with em++ so Emscripten includes the C++ runtime required by static libraries.
     subprocess.run(
         [
             "python",
-            os.path.join(emsdk_path, "upstream", "emscripten", "emcc.py"),
+            os.path.join(emsdk_path, "upstream", "emscripten", "em++.py"),
             f"{build_directory}/libCHelperWeb.a",
             f"{build_directory}/libCHelperNoFilesystemCore.a",
             f"{build_directory}/3rdparty/fmt/libfmt.a",

@@ -69,7 +69,7 @@ data class AuthorInfo(
  * @property isPublish 指示该函数是否已发布（针对公开/私有状态）
  */
 @Serializable
-class LibraryFunction(
+data class LibraryFunction(
     var id: Int? = null,
     var uuid: String? = null,
     var name: String? = null,
@@ -82,6 +82,7 @@ class LibraryFunction(
     var preview: String? = null,
     @SerialName("like_count") var likeCount: Int? = null,
     @SerialName("is_liked") var isLiked: Boolean? = null,
+    @SerialName("is_favorited") var isFavorited: Boolean? = null,
     @SerialName("has_public_version") var hasPublicVersion: Boolean? = null,
     @SerialName("is_publish") var isPublish: Boolean? = null,
     @SerialName("is_owner") var isOwner: Boolean? = null,
@@ -100,7 +101,11 @@ class LibraryFunction(
      * - 后端 JSON 不会返回这个字段，反序列化默认 false，不会影响远端数据。
      * - 用一个不会和后端冲突的 snake_case 名字，避免未来撞键。
      */
-    @SerialName("local_unsynced") var localUnsynced: Boolean = false
+    @SerialName("local_unsynced") var localUnsynced: Boolean = false,
+    /** 纯本地稳定标识；列表过滤、排序或删除其他条目后仍能准确定位。 */
+    @SerialName("local_entry_id") var localEntryId: String? = null,
+    /** 纯本地语法版本标记，避免只存正文时丢失 MCD V2 状态。 */
+    @SerialName("local_is_v2") var localIsV2: Boolean? = null
 ) {
     /**
      * 获取作者的展示名称，主要用于向后兼容

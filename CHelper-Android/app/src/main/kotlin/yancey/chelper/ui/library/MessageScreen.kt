@@ -18,6 +18,7 @@
 
 package yancey.chelper.ui.library
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +41,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -51,18 +53,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hjq.toast.Toaster
 import yancey.chelper.R
 import yancey.chelper.network.library.data.SiteMessage
 import yancey.chelper.network.library.data.formatUnixTime
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.dialog.CustomDialog
 import yancey.chelper.ui.common.dialog.DialogContainer
+import yancey.chelper.ui.common.dialog.annotateHttpLinks
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.widget.Icon
 import yancey.chelper.ui.common.widget.Text
@@ -71,6 +77,7 @@ import yancey.chelper.ui.common.widget.Text
 fun MessageScreen(
     viewModel: MessageViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
@@ -80,6 +87,28 @@ fun MessageScreen(
     }
 
     var selectedMessageForAction by remember { mutableStateOf<SiteMessage?>(null) }
+
+    DisposableEffect(viewModel.pendingBrowserUrl) {
+        viewModel.pendingBrowserUrl?.let { url ->
+            viewModel.pendingBrowserUrl = null
+            runCatching {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }.onFailure {
+                Toaster.show("无法打开链接")
+            }
+        }
+        onDispose { }
+    }
+
+    DisposableEffect(viewModel.linkMessage) {
+        viewModel.linkMessage?.let { message ->
+            viewModel.linkMessage = null
+            Toaster.show(message)
+        }
+        onDispose { }
+    }
 
     // 滚动到底部自动加载下一页
     val shouldLoadMore = remember {
@@ -244,7 +273,8 @@ fun MessageScreen(
                     viewModel.deleteMessage(id)
                 }
                 selectedMessageForAction = null
-            }
+            },
+            onLinkClick = viewModel::openMessageLink,
         )
     }
 }
@@ -370,8 +400,13 @@ private fun MessageDetailDialog(
     message: SiteMessage,
     onDismiss: () -> Unit,
     onRead: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onLinkClick: (String) -> Unit,
 ) {
+    val linkColor = CHelperTheme.colors.mainColor
+    val messageContent = remember(message.content, linkColor, onLinkClick) {
+        annotateHttpLinks(message.content ?: "无内容", linkColor, onLinkClick)
+    }
     CustomDialog(
         onDismissRequest = {
             onRead()
@@ -446,7 +481,7 @@ private fun MessageDetailDialog(
                         .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        text = message.content ?: "无内容",
+                        text = messageContent,
                         style = TextStyle(
                             color = CHelperTheme.colors.textMain,
                             fontSize = 14.sp,

@@ -47,6 +47,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -79,6 +80,7 @@ import yancey.chelper.network.ServiceManager
 import yancey.chelper.network.library.data.AuthorInfo
 import yancey.chelper.network.library.data.LibraryFunction
 import yancey.chelper.ui.LibrarySearchScreenKey
+import yancey.chelper.ui.FavoriteLibraryListScreenKey
 import yancey.chelper.ui.PublicLibraryShowScreenKey
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
@@ -111,6 +113,14 @@ fun PublicLibraryListScreen(
         }
     }
     val listState = rememberLazyListState()
+
+    DisposableEffect(viewModel.actionMessage) {
+        viewModel.actionMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.actionMessage = null
+        }
+        onDispose { }
+    }
 
     // 首次进入按设置初始化模式；之后用户在 tab 内的切换即为最终态，
     // 不要在每次重新进入页面时强行覆盖回设置默认（之前的 bug：切回云端总是变成猜你喜欢）
@@ -189,6 +199,16 @@ fun PublicLibraryListScreen(
         showBack = if (isTab) true else !isTab,
         onBack = if (isTab) ({ navController.popBackStack() }) else null,
         headerRight = {
+            if (!isFloatingWindow) {
+                Icon(
+                    id = R.drawable.bookmark,
+                    modifier = Modifier
+                        .clickable { navController.navigate(FavoriteLibraryListScreenKey) }
+                        .padding(5.dp)
+                        .size(24.dp),
+                    contentDescription = "我的收藏"
+                )
+            }
             Icon(
                 id = R.drawable.refresh,
                 modifier =
@@ -395,7 +415,8 @@ fun PublicLibraryListScreen(
                                             LibrarySearchScreenKey(tag)
                                         )
                                     }
-                                }
+                                },
+                                onFavorite = { viewModel.toggleFavorite(library) }
                             )
                         }
 
@@ -446,7 +467,8 @@ private fun PublicLibraryItem(
     modifier: Modifier = Modifier,
     library: LibraryFunction,
     onClick: () -> Unit,
-    onTagClick: (String) -> Unit = {}
+    onTagClick: (String) -> Unit = {},
+    onFavorite: () -> Unit = {}
 ) {
     // 热门或高Tier创作者加主题色亮边与背景高亮
     val isFeatured = (library.likeCount ?: 0) >= 10 || (library.author?.tier ?: 0) >= 2
@@ -626,6 +648,23 @@ private fun PublicLibraryItem(
                     )
                 }
             }
+
+            Image(
+                painter = painterResource(
+                    if (library.isFavorited == true) R.drawable.bookmark_filled else R.drawable.bookmark
+                ),
+                contentDescription = if (library.isFavorited == true) "取消收藏" else "收藏",
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable(onClick = onFavorite)
+                    .padding(8.dp)
+                    .size(18.dp),
+                colorFilter = ColorFilter.tint(
+                    if (library.isFavorited == true) CHelperTheme.colors.mainColor
+                    else CHelperTheme.colors.textSecondary
+                )
+            )
 
             // 右侧箭头
             Icon(

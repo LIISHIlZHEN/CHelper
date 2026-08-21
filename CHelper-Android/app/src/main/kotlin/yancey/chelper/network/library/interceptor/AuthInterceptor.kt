@@ -40,6 +40,13 @@ class AuthInterceptor private constructor() : Interceptor {
 
         if (request.url.host == "abyssous.site") {
             val builder = request.newBuilder()
+                // 后端分享等接口靠 X-Client / UA 识别安卓端，浏览器直接调会 403
+                .header("X-Client", "chelper-android")
+                .header(
+                    "User-Agent",
+                    request.header("User-Agent")?.takeIf { it.contains("CHelper", ignoreCase = true) }
+                        ?: "CHelper-Android"
+                )
 
             // 添加 WAF Cookie
             val wafCookie = WafHelper.getCookie()

@@ -33,12 +33,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import yancey.chelper.network.ServiceManager
 import yancey.chelper.network.library.data.LibraryFunction
+import yancey.chelper.network.library.util.LoginUtil
 
 class PublicLibraryListViewModel : ViewModel() {
     var libraries: SnapshotStateList<LibraryFunction> = mutableStateListOf()
 
     var isLoading by mutableStateOf(false)
     var errorMessage by mutableStateOf<String?>(null)
+    var actionMessage by mutableStateOf<String?>(null)
     var currentPage by mutableIntStateOf(1)
     var totalPages by mutableIntStateOf(1)
     var hasMore by mutableStateOf(true)
@@ -210,5 +212,30 @@ class PublicLibraryListViewModel : ViewModel() {
         Log.d("CPL_Tab", "refresh called: isRecommend=$isRecommend")
         forceRefresh = true
         loadFunctions(null, resetPage = true, isRecommend = isRecommend)
+    }
+
+    fun toggleFavorite(library: LibraryFunction) {
+        if (!LoginUtil.isLoggedIn || LoginUtil.currentUser?.isGuest == true) {
+            actionMessage = "请先登录正式账号使用收藏夹"
+            return
+        }
+        val id = library.id ?: return
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    ServiceManager.COMMAND_LAB_USER_SERVICE.toggleFavorite(id)
+                }
+                if (result.isSuccess() && result.data != null) {
+                    val favorited = result.data!!.isFavorited == true
+                    val index = libraries.indexOfFirst { it.id == id }
+                    if (index >= 0) libraries[index] = libraries[index].copy(isFavorited = favorited)
+                    actionMessage = result.message ?: if (favorited) "已加入收藏夹" else "已取消收藏"
+                } else {
+                    actionMessage = result.message ?: "收藏操作失败"
+                }
+            } catch (e: Exception) {
+                actionMessage = "网络错误: ${e.message}"
+            }
+        }
     }
 }
