@@ -52,9 +52,3 @@ jobs:
       - name: Run Resource Generator
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ./CHelperResourceGenerator
-
-      - name: Upload Generator Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: CHelperResourceGenerator
-          path: ${{ steps.strings.outputs.build-output-dir }}/CHelperResourceGenerator
