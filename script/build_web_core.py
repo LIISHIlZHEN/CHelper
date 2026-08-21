@@ -1,23 +1,25 @@
 import os
 import shutil
 import subprocess
+import sys
 
 
 def ensure_download_emsdk(toolchain_dir: str):
-    ndk_path = os.path.join(toolchain_dir, "emsdk")
-    current_dir = os.getcwd()
-    os.chdir(toolchain_dir)
-    if not os.path.exists(ndk_path):
+    emsdk_path = os.path.join(toolchain_dir, "emsdk")
+    if not os.path.exists(emsdk_path):
         subprocess.run(
-            ["git", "clone", "https://github.com/emscripten-core/emsdk"], check=True
+            ["git", "clone", "https://github.com/emscripten-core/emsdk"],
+            cwd=toolchain_dir,
+            check=True,
         )
-        os.chdir("./emsdk")
     else:
-        os.chdir("./emsdk")
-        subprocess.run(["git", "pull"], check=True)
-    subprocess.run(["python", "./emsdk.py", "install", "latest"], check=True)
-    subprocess.run(["python", "./emsdk.py", "activate", "latest"], check=True)
-    os.chdir(current_dir)
+        subprocess.run(["git", "pull"], cwd=emsdk_path, check=True)
+    subprocess.run(
+        ["python", "./emsdk.py", "install", "latest"], cwd=emsdk_path, check=True
+    )
+    subprocess.run(
+        ["python", "./emsdk.py", "activate", "latest"], cwd=emsdk_path, check=True
+    )
 
 
 def build_web_core(toolchain_dir: str):
@@ -31,7 +33,7 @@ def build_web_core(toolchain_dir: str):
             "-D",
             "CMAKE_BUILD_TYPE=MinSizeRel",
             "-D",
-            f'CMAKE_TOOLCHAIN_FILE={emsdk_path}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake',
+            f"CMAKE_TOOLCHAIN_FILE={emsdk_path}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
             "-B",
             build_directory,
             "-G",
@@ -297,15 +299,36 @@ export class CHelperCore {
 
 if __name__ == "__main__":
     # check toolchain
-    if subprocess.run(["node", "-v"], capture_output=True).returncode != 0:
+    if (
+        subprocess.run(
+            ["node", "-v"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download nodejs")
-        exit(-1)
-    if subprocess.run(["cmake", "--version"], capture_output=True).returncode != 0:
+        sys.exit(-1)
+    if (
+        subprocess.run(
+            ["cmake", "--version"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download cmake")
-        exit(-1)
-    if subprocess.run(["ninja", "--version"], capture_output=True).returncode != 0:
+        sys.exit(-1)
+    if (
+        subprocess.run(
+            ["ninja", "--version"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download ninja")
-        exit(-1)
+        sys.exit(-1)
     toolchain_dir = os.path.join(os.getcwd(), "toolchain")
     os.makedirs(toolchain_dir, exist_ok=True)
     ensure_download_emsdk(toolchain_dir)

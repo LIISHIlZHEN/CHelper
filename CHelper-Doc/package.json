@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "markdown-it": "^15.0.0"
+  },
   "devDependencies": {
     "vitepress": "2.0.0-alpha.18"
   },

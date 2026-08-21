@@ -5,8 +5,8 @@ import sys
 import zipfile
 from urllib.request import urlretrieve
 
-
 NDK_VERSION = "r29"
+
 
 def ensure_download_android_ndk(toolchain_dir: str):
     ndk_path = os.path.join(toolchain_dir, f"android-ndk-{NDK_VERSION}")
@@ -62,7 +62,7 @@ def build_android_core(toolchain_dir: str):
             "-D",
             "CMAKE_BUILD_TYPE=Release",
             "-D",
-            f'CMAKE_TOOLCHAIN_FILE={ndk_path}/build/cmake/android.toolchain.cmake',
+            f"CMAKE_TOOLCHAIN_FILE={ndk_path}/build/cmake/android.toolchain.cmake",
             "-D",
             "ANDROID_ABI=arm64-v8a",
             "-D",
@@ -73,9 +73,9 @@ def build_android_core(toolchain_dir: str):
             "CMAKE_ANDROID_ARCH_ABI=arm64-v8a",
             "-D",
             f"CMAKE_ANDROID_NDK={ndk_path}",
-             "-D",
+            "-D",
             "CMAKE_SYSTEM_NAME=Android",
-             "-D",
+            "-D",
             "CMAKE_SYSTEM_VERSION=24",
             "-B",
             build_directory,
@@ -97,21 +97,41 @@ def build_android_core(toolchain_dir: str):
         llvm_strip_path = (
             f"{ndk_path}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
         )
-    subprocess.run([llvm_strip_path, so_file, '-o', f'{so_file}.striped'], shell=True)
+    subprocess.run(
+        [llvm_strip_path, so_file, "-o", f"{so_file}.striped"],
+        shell=True,
+        check=True,
+    )
     shutil.copyfile(
         f"{so_file}.striped",
-        os.path.join('.', 'CHelper-Android', 'app', 'libs', 'arm64-v8a', 'libCHelperAndroid.so')
+        os.path.join(
+            ".", "CHelper-Android", "app", "libs", "arm64-v8a", "libCHelperAndroid.so"
+        ),
     )
 
 
 if __name__ == "__main__":
     # check toolchain
-    if subprocess.run(["cmake", "--version"], capture_output=True).returncode != 0:
+    if (
+        subprocess.run(
+            ["cmake", "--version"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download cmake")
-        exit(-1)
-    if subprocess.run(["ninja", "--version"], capture_output=True).returncode != 0:
+        sys.exit(-1)
+    if (
+        subprocess.run(
+            ["ninja", "--version"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download ninja")
-        exit(-1)
+        sys.exit(-1)
     toolchain_dir = os.path.join(os.getcwd(), "toolchain")
     os.makedirs(toolchain_dir, exist_ok=True)
     ensure_download_android_ndk(toolchain_dir)

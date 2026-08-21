@@ -1,33 +1,72 @@
+import json
 import os
 import shutil
 import subprocess
-import json
 import sys
-from build_android_core import ensure_download_android_ndk, build_android_core
-from build_web_core import ensure_download_emsdk, build_web_core
+
+from build_android import build_android_apk, get_gradlew
+from build_android_core import build_android_core, ensure_download_android_ndk
+from build_web_core import build_web_core, ensure_download_emsdk
 
 if __name__ == "__main__":
     # check toolchain
-    if subprocess.run(["node", "-v"], capture_output=True).returncode != 0:
+    if (
+        subprocess.run(
+            ["node", "-v"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download nodejs")
-        exit(-1)
-    if subprocess.run(["cmake", "--version"], capture_output=True).returncode != 0:
+        sys.exit(-1)
+    if (
+        subprocess.run(
+            ["cmake", "--version"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download cmake")
-        exit(-1)
-    if subprocess.run(["ninja", "--version"], capture_output=True).returncode != 0:
+        sys.exit(-1)
+    if (
+        subprocess.run(
+            ["ninja", "--version"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download ninja")
-        exit(-1)
+        sys.exit(-1)
     if sys.platform == "win32":
-        gradlew = "gradlew.bat"
         pnpm = "pnpm.cmd"
         corepack = "corepack.cmd"
     else:
-        gradlew = "gradlew"
         pnpm = "pnpm"
         corepack = "corepack"
-    if subprocess.run([pnpm, "-v"], capture_output=True).returncode != 0:
+    if (
+        subprocess.run(
+            [pnpm, "-v"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         print("please download pnpm")
-        exit(-1)
+        sys.exit(-1)
+    if (
+        subprocess.run(
+            [get_gradlew(), "--version"],
+            capture_output=True,
+            check=False,
+            cwd=os.path.abspath(os.path.join(".", "CHelper-Android")),
+        ).returncode
+        != 0
+    ):
+        print("please download JDK (required by gradle wrapper)")
+        sys.exit(-1)
     toolchain_dir = os.path.join(os.getcwd(), "toolchain")
     os.makedirs(toolchain_dir, exist_ok=True)
     ensure_download_android_ndk(toolchain_dir)
@@ -132,10 +171,8 @@ if __name__ == "__main__":
 
     # build apk
     print("building apk...")
-    os.chdir("CHelper-Android")
-    subprocess.run([gradlew, "assembleRelease"], check=True)
-    os.chdir("..")
-    
+    build_android_apk()
+
     # build web and build doc
     subprocess.run([corepack, "up"], check=True)
     subprocess.run([pnpm, "-r", "up", "--latest"], check=True)
