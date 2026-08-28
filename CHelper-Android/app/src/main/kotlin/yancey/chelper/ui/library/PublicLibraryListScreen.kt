@@ -73,7 +73,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import yancey.chelper.R
 import yancey.chelper.data.SettingsDataStore
 import yancey.chelper.network.ServiceManager

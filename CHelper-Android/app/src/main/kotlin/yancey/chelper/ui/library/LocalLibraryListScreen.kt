@@ -64,7 +64,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.hjq.toast.Toaster
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers

@@ -68,7 +68,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.hjq.toast.Toaster
 import yancey.chelper.R
 import yancey.chelper.network.library.data.LibraryFunction
