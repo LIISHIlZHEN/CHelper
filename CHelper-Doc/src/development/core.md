@@ -108,7 +108,7 @@ cmake --build . --target CHelperWeb --parallel
 emcc libCHelperWeb.a libCHelperNoFilesystemCore.a 3rdparty/fmt/libfmt.a 3rdparty/spdlog/libspdlog.a 3rdparty/xxHash/cmake_unofficial/libxxhash.a -Os -o libCHelperWeb.js -s FILESYSTEM=0 -s DISABLE_EXCEPTION_CATCHING=1 -s ALLOW_MEMORY_GROWTH -s ENVIRONMENT="web" -s EXPORTED_FUNCTIONS="['_init','_release','_onTextChanged','_onSelectionChanged','_getParamHint','_getErrorReasons','_getSuggestionSize','_getSuggestion','_getAllSuggestions','_onSuggestionClick','_getSyntaxTokens','_createCommandContext','_releaseCommandContext','_contextGetCommand','_contextGetStructure','_contextGetParamHint','_contextGetErrorReasons','_contextGetSuggestionSize','_contextGetSuggestion','_contextGetAllSuggestions','_contextApplySuggestion','_contextGetSyntaxTokens','_contextGetNodeCount','_malloc','_free']" -s WASM=1 -s "EXPORTED_RUNTIME_METHODS=[]"
 cd ..
 
-python ./script/patch-wasm.py
+python ./scripts/patch-wasm.py
 ```
 
 ## 加入我们
