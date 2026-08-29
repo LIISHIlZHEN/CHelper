@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -61,9 +60,8 @@ fun InputStringDialog(
                         .padding(0.dp, 10.dp),
                     text = title,
                     style = TextStyle(
-                        fontSize = 20.sp,
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 18.sp,
+                        textAlign = TextAlign.Center
                     )
                 )
                 TextField(
@@ -73,7 +71,6 @@ fun InputStringDialog(
                         .height(40.dp),
                     contentAlignment = Alignment.Center,
                     hint = stringResource(R.string.dialog_input_string_input_hint),
-                    style = TextStyle(fontSize = 20.sp)
                 )
                 Divider(0.dp)
                 Row(Modifier.height(45.dp)) {
@@ -88,7 +85,7 @@ fun InputStringDialog(
                             modifier = Modifier.align(Alignment.Center),
                             text = stringResource(R.string.dialog_input_string_cancel),
                             style = TextStyle(
-                                fontSize = 20.sp,
+                                fontSize = 18.sp,
                                 color = CHelperTheme.colors.mainColor,
                                 textAlign = TextAlign.Center
                             )
@@ -107,7 +104,7 @@ fun InputStringDialog(
                             modifier = Modifier.align(Alignment.Center),
                             text = stringResource(R.string.dialog_input_string_confirm),
                             style = TextStyle(
-                                fontSize = 20.sp,
+                                fontSize = 18.sp,
                                 color = CHelperTheme.colors.mainColor,
                                 textAlign = TextAlign.Center
                             )

@@ -58,8 +58,8 @@ import yancey.chelper.network.library.data.AuthorInfo
 import yancey.chelper.network.library.data.LibraryFunction
 import yancey.chelper.ui.LibraryEditScreenKey
 import yancey.chelper.ui.common.CHelperTheme
-import yancey.chelper.ui.common.dialog.ChoosingDialog
 import yancey.chelper.ui.common.dialog.IsConfirmDialog
+import yancey.chelper.ui.common.dialog.MenuDialog
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.widget.Icon
 import yancey.chelper.ui.common.widget.Text
@@ -157,7 +157,7 @@ fun LocalLibraryShowScreen(
     }
 
     if (showMenu && library != null) {
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showMenu = false },
             data = buildList {
                 if (onEdit != null) add("编辑" to "edit")

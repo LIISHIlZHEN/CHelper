@@ -29,18 +29,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.widget.Divider
 import yancey.chelper.ui.common.widget.Text
 
 @Composable
-fun ChoosingDialog(
-    onDismissRequest: () -> Unit,
+fun MenuDialog(
     data: Array<Pair<String, String>>,
-    onChoose: (String) -> Unit
+    onChoose: (String) -> Unit,
+    onDismissRequest: () -> Unit,
 ) {
     CustomDialog(onDismissRequest = onDismissRequest) {
         DialogContainer(
@@ -57,16 +57,17 @@ fun ChoosingDialog(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(45.dp)
                             .clickable {
-                                onChoose(pair.second)
                                 onDismissRequest.invoke()
-                            }) {
+                                onChoose(pair.second)
+                            }
+                    ) {
                         Text(
                             text = pair.first,
-                            modifier = Modifier.align(Alignment.Center),
+                            modifier = Modifier.align(alignment = Alignment.Center),
                             style = TextStyle(
-                                fontSize = 20.sp
+                                textAlign = TextAlign.Center,
                             )
                         )
                     }
@@ -78,38 +79,39 @@ fun ChoosingDialog(
 
 @Preview
 @Composable
-fun ChoosingDialogLightThemePreview() {
+fun MenuDialogLightThemePreview() {
     CHelperTheme(
         theme = CHelperTheme.Theme.Light,
         backgroundBitmap = null
     ) {
-        ChoosingDialog(
-            onDismissRequest = { },
+        MenuDialog(
             data = arrayOf(
                 "浅色模式" to "MODE_NIGHT_NO",
                 "深色模式" to "MODE_NIGHT_YES",
                 "跟随系统" to "MODE_NIGHT_FOLLOW_SYSTEM",
             ),
-            onChoose = {}
+            onChoose = {},
+            onDismissRequest = { },
         )
     }
 }
 
 @Preview
 @Composable
-fun ChoosingDialogDarkThemePreview() {
+fun MenuDialogDarkThemePreview() {
     CHelperTheme(
         theme = CHelperTheme.Theme.Dark,
         backgroundBitmap = null
     ) {
-        ChoosingDialog(
-            onDismissRequest = { },
+        MenuDialog(
             data = arrayOf(
                 "浅色模式" to "MODE_NIGHT_NO",
                 "深色模式" to "MODE_NIGHT_YES",
                 "跟随系统" to "MODE_NIGHT_FOLLOW_SYSTEM",
             ),
-            onChoose = {}
+            onChoose = {},
+            onDismissRequest = { },
         )
     }
 }
+

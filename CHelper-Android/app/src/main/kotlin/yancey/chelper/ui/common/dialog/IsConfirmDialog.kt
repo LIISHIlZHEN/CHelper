@@ -41,7 +41,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
@@ -88,9 +87,8 @@ fun IsConfirmDialog(
                             .padding(0.dp, 10.dp),
                         text = title,
                         style = TextStyle(
-                            fontSize = 20.sp,
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 18.sp,
+                            textAlign = TextAlign.Center
                         )
                     )
                     Text(
@@ -100,7 +98,9 @@ fun IsConfirmDialog(
                             .weight(1f, fill = false)
                             .verticalScroll(rememberScrollState()),
                         text = renderedContent,
-                        style = TextStyle(fontSize = 20.sp, textAlign = TextAlign.Center)
+                        style = TextStyle(
+                            textAlign = TextAlign.Center
+                        )
                     )
                 }
                 Divider(0.dp)
@@ -117,7 +117,7 @@ fun IsConfirmDialog(
                             modifier = Modifier.align(Alignment.Center),
                             text = cancelText,
                             style = TextStyle(
-                                fontSize = 20.sp,
+                                fontSize = 18.sp,
                                 color = CHelperTheme.colors.mainColor,
                                 textAlign = TextAlign.Center
                             )
@@ -136,7 +136,7 @@ fun IsConfirmDialog(
                             modifier = Modifier.align(Alignment.Center),
                             text = confirmText,
                             style = TextStyle(
-                                fontSize = 20.sp,
+                                fontSize = 18.sp,
                                 color = CHelperTheme.colors.mainColor,
                                 textAlign = TextAlign.Center
                             )

@@ -43,9 +43,9 @@ import kotlinx.coroutines.withContext
 import yancey.chelper.R
 import yancey.chelper.data.SettingsDataStore
 import yancey.chelper.ui.common.CHelperTheme
-import yancey.chelper.ui.common.dialog.ChoosingDialog
 import yancey.chelper.ui.common.dialog.InputStringDialog
 import yancey.chelper.ui.common.dialog.IsConfirmDialog
+import yancey.chelper.ui.common.dialog.SelectionDialog
 import yancey.chelper.ui.common.layout.Collection
 import yancey.chelper.ui.common.layout.CollectionName
 import yancey.chelper.ui.common.layout.NameAndAction
@@ -73,6 +73,8 @@ fun SettingsScreen(
     var isShowInputSyntaxHighlightMaxLengthDialog by remember { mutableStateOf(false) }
     val isEnableUpdateNotifications by settingsDataStore.isEnableUpdateNotifications()
         .collectAsState(initial = null)
+    val themeId by settingsDataStore.themeId()
+        .collectAsState(initial = "MODE_NIGHT_FOLLOW_SYSTEM")
     val cpackBranch by settingsDataStore.cpackBranch()
         .collectAsState(initial = null)
     val isCheckingBySelection by settingsDataStore.isCheckingBySelection()
@@ -401,7 +403,9 @@ fun SettingsScreen(
                 "跟随系统" to "MODE_NIGHT_FOLLOW_SYSTEM",
             )
         }
-        ChoosingDialog(
+        SelectionDialog(
+            title = "选择主题",
+            initialValue = themeId,
             onDismissRequest = { isShowChooseThemeDialog = false },
             data = data,
             onChoose = {
@@ -492,7 +496,9 @@ fun SettingsScreen(
         )
     }
     if (isShowChooseCpackBranchDialog) {
-        ChoosingDialog(
+        SelectionDialog(
+            title = "选择命令分支",
+            initialValue = cpackBranch,
             onDismissRequest = { isShowChooseCpackBranchDialog = false },
             data = cpackBranchesWithTranslate,
             onChoose = {
@@ -502,7 +508,9 @@ fun SettingsScreen(
             })
     }
     if (isShowChooseTagClickDialog) {
-        ChoosingDialog(
+        SelectionDialog(
+            title = "选择 Tag 点击行为",
+            initialValue = tagClickBehavior,
             onDismissRequest = { isShowChooseTagClickDialog = false },
             data = arrayOf(
                 "搜索该 Tag" to "search",
@@ -516,7 +524,9 @@ fun SettingsScreen(
             })
     }
     if (isShowChooseAmbiguousLineDialog) {
-        ChoosingDialog(
+        SelectionDialog(
+            title = "选择模糊行处理方式",
+            initialValue = ambiguousLineDefault,
             onDismissRequest = { isShowChooseAmbiguousLineDialog = false },
             data = arrayOf(
                 "当作注释" to "comment",
@@ -530,7 +540,9 @@ fun SettingsScreen(
             })
     }
     if (isShowChooseLibraryHomeRecommendDialog) {
-        ChoosingDialog(
+        SelectionDialog(
+            title = "选择云端库首页推荐方式",
+            initialValue = if (isPublicLibraryHomeRecommend) "true" else "false",
             onDismissRequest = { isShowChooseLibraryHomeRecommendDialog = false },
             data = arrayOf(
                 "猜你喜欢" to "true",

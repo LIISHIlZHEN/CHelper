@@ -45,7 +45,7 @@ import yancey.chelper.R
 import yancey.chelper.network.library.data.LibraryFunction
 import yancey.chelper.ui.PublicLibraryShowScreenKey
 import yancey.chelper.ui.common.CHelperTheme
-import yancey.chelper.ui.common.dialog.ChoosingDialog
+import yancey.chelper.ui.common.dialog.MenuDialog
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.widget.Icon
 import yancey.chelper.ui.common.widget.Text
@@ -169,7 +169,7 @@ fun FavoriteLibraryListScreen(
 
     if (menuIndex >= 0 && menuIndex < viewModel.favorites.size) {
         val target = viewModel.favorites[menuIndex]
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { menuIndex = -1 },
             data = arrayOf(
                 "打开云端库" to "open",

@@ -94,10 +94,10 @@ import yancey.chelper.ui.PublicLibraryShowScreenKey
 import yancey.chelper.ui.UserProfileScreenKey
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.dialog.CaptchaDialog
-import yancey.chelper.ui.common.dialog.ChoosingDialog
 import yancey.chelper.ui.common.dialog.CustomDialog
 import yancey.chelper.ui.common.dialog.DialogContainer
 import yancey.chelper.ui.common.dialog.IsConfirmDialog
+import yancey.chelper.ui.common.dialog.MenuDialog
 import yancey.chelper.ui.common.dialog.ReportDialog
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.widget.Divider
@@ -664,7 +664,7 @@ fun PublicLibraryShowScreen(
             if (!isPrivate) add("举报" to "report")
             add("关闭" to "close")
         }.toTypedArray()
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showMainMenu = false },
             data = menuItems,
             onChoose = { action ->
@@ -704,7 +704,7 @@ fun PublicLibraryShowScreen(
             add("删除私有库" to "delete")
             add("◂ 返回" to "back")
         }.toTypedArray()
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showManageMenu = false },
             data = manageItems,
             onChoose = { action ->
@@ -745,7 +745,7 @@ fun PublicLibraryShowScreen(
     }
 
     if (showDeleteConfirmDialog) {
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
             data = arrayOf("确认删除 (不可恢复)" to "confirm", "取消" to "cancel"),
             onChoose = { action ->
@@ -760,7 +760,7 @@ fun PublicLibraryShowScreen(
     }
 
     if (showLocalImportConfirmDialog) {
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showLocalImportConfirmDialog = false },
             data = arrayOf(
                 "导入到本地库" to "confirm",
@@ -768,7 +768,7 @@ fun PublicLibraryShowScreen(
             ),
             onChoose = { action ->
                 showLocalImportConfirmDialog = false
-                if (action != "confirm") return@ChoosingDialog
+                if (action != "confirm") return@MenuDialog
                 coroutineScope.launch {
                     val imported = viewModel.library.toLocalImportedCopy()
                     val (localEntryId, alreadyExists) = withContext(Dispatchers.IO) {

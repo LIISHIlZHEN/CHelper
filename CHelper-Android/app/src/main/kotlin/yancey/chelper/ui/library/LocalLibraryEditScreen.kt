@@ -74,8 +74,8 @@ import yancey.chelper.network.library.service.CommandLabUserService
 import yancey.chelper.network.library.util.CloudLibraryCache
 import yancey.chelper.network.library.util.LoginUtil
 import yancey.chelper.ui.common.CHelperTheme
-import yancey.chelper.ui.common.dialog.ChoosingDialog
 import yancey.chelper.ui.common.dialog.IsConfirmDialog
+import yancey.chelper.ui.common.dialog.MenuDialog
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.layout.SettingsItem
 import yancey.chelper.ui.common.widget.Button
@@ -432,7 +432,7 @@ fun LocalLibraryEditScreen(
 
     if (viewModel.isShowTemplateDialog) {
         val templates = viewModel.availableTemplates()
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { viewModel.isShowTemplateDialog = false },
             data = templates.mapIndexed { index, template -> template.label to index.toString() }
                 .plus("关闭" to "close")

@@ -78,7 +78,7 @@ import yancey.chelper.ui.MessageScreenKey
 import yancey.chelper.ui.UserProfileScreenKey
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.dialog.CaptchaDialog
-import yancey.chelper.ui.common.dialog.ChoosingDialog
+import yancey.chelper.ui.common.dialog.MenuDialog
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.widget.Button
 import yancey.chelper.ui.common.widget.Icon
@@ -612,7 +612,7 @@ fun MyLibraryItem(lib: LibraryFunction, onClick: () -> Unit, onDelete: () -> Uni
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showDeleteConfirm) {
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showDeleteConfirm = false },
             data = arrayOf("确认删除" to "confirm", "取消" to "cancel"),
             onChoose = { action ->

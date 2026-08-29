@@ -32,6 +32,10 @@
     <string name="dialog_is_confirm_cancel">取消</string>
     <string name="dialog_is_confirm_confirm">确认</string>
 
+    <!--    use in ChoosingDialog    -->
+    <string name="dialog_choosing_cancel">取消</string>
+    <string name="dialog_choosing_confirm">确认</string>
+
     <!--    use in PolicyGrantDialog    -->
     <string name="dialog_policy_grant_title">隐私政策</string>
     <string name="dialog_policy_grant_message_if_unread">为保障您的权益，请阅读并同意《CHelper 隐私政策》，了解我们如何收集、使用您的信息。</string>

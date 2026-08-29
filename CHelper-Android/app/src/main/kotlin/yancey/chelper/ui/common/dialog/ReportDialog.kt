@@ -44,11 +44,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.widget.Divider
 import yancey.chelper.ui.common.widget.DividerVertical
+import yancey.chelper.ui.common.widget.RadioButton
 import yancey.chelper.ui.common.widget.Text
 import yancey.chelper.ui.common.widget.TextField
 
@@ -91,9 +93,7 @@ fun ReportDialog(
                     text = title,
                     style = TextStyle(
                         fontSize = 18.sp,
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold,
-                        color = CHelperTheme.colors.textMain
+                        textAlign = TextAlign.Center
                     )
                 )
 
@@ -128,16 +128,9 @@ fun ReportDialog(
                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 单选圆点：选中实心，未选空心
-                            Box(
-                                modifier = Modifier
-                                    .width(14.dp)
-                                    .height(14.dp)
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .background(
-                                        if (isSelected) CHelperTheme.colors.mainColor
-                                        else CHelperTheme.colors.background
-                                    )
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = {},
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
@@ -222,5 +215,35 @@ fun ReportDialog(
                 }
             }
         }
+    }
+}
+
+@Preview
+@Composable
+fun ReportDialogLightThemePreview() {
+    CHelperTheme(
+        theme = CHelperTheme.Theme.Light,
+        backgroundBitmap = null
+    ) {
+        ReportDialog(
+            onConfirm = {},
+            targetDescription = "xxx",
+            onDismissRequest = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+fun ReportDialogDarkThemePreview() {
+    CHelperTheme(
+        theme = CHelperTheme.Theme.Dark,
+        backgroundBitmap = null
+    ) {
+        ReportDialog(
+            onConfirm = {},
+            targetDescription = "xxx",
+            onDismissRequest = {}
+        )
     }
 }

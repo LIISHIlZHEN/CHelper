@@ -83,8 +83,8 @@ import yancey.chelper.ui.MessageScreenKey
 import yancey.chelper.ui.PublicLibraryShowScreenKey
 import yancey.chelper.ui.UserProfileScreenKey
 import yancey.chelper.ui.common.CHelperTheme
-import yancey.chelper.ui.common.dialog.ChoosingDialog
 import yancey.chelper.ui.common.dialog.IsConfirmDialog
+import yancey.chelper.ui.common.dialog.MenuDialog
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.widget.Divider
 import yancey.chelper.ui.common.widget.Icon
@@ -388,7 +388,7 @@ fun LocalLibraryListScreen(
             add("删除" to "delete")
             add("关闭" to "close")
         }.toTypedArray()
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showLocalMenuId = null },
             data = menuItems,
             onChoose = { action ->
@@ -509,7 +509,7 @@ fun LocalLibraryListScreen(
     if (showLocalToolsMenu) {
         val allVisibleSelected = filteredLibraries.isNotEmpty() &&
                 filteredLibraries.all { it.localEntryId in selectedLocalIds }
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showLocalToolsMenu = false },
             data = buildList {
                 add("排序：${viewModel.localSort.label}" to "sort")
@@ -561,7 +561,7 @@ fun LocalLibraryListScreen(
     }
 
     if (showSortMenu) {
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showSortMenu = false },
             data = LocalLibrarySort.entries.map { it.label to it.name }.toTypedArray(),
             onChoose = { value -> viewModel.localSort = LocalLibrarySort.valueOf(value) }
@@ -590,7 +590,7 @@ fun LocalLibraryListScreen(
     // 已登录态下右上角账户图标点出的菜单：账户中心、退出登录、关闭
     // 未登录走直接跳 CPLUserScreen 的分支，不进这里
     if (showAccountMenu) {
-        ChoosingDialog(
+        MenuDialog(
             onDismissRequest = { showAccountMenu = false },
             data = arrayOf(
                 "账户中心" to "account",
