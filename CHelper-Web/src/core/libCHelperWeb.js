@@ -421,10 +421,6 @@ async function run() {
 var wasmExports
 export var createWasmFuture = createWasm().then(() => run())
 
-function alignPtr(ptr) {
-  return ptr + (ptr % 4)
-}
-
 // 内存视图可能因内存增长（ALLOW_MEMORY_GROWTH）而失效，每次读取前通过 HEAPU8 获取底层 buffer
 let u16View = null
 function getHEAPU16() {
@@ -435,19 +431,56 @@ function getHEAPU16() {
   return u16View
 }
 
-// 读取 [4字节长度][u16字符串]
-function readString(ptr) {
-  const length = HEAPU32[ptr >> 2]
-  ptr += 4
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += String.fromCharCode(getHEAPU16()[ptr >> 1])
-    ptr += 2
-  }
-  return result
+// ---- 手写内存协议（与 CHelper-Core/src/apps/CHelperWeb.cpp 一一对应）----
+// 规则：
+//   1. 所有 uint32 字段都位于 4 字节对齐地址，读取前先检查对齐与内存边界
+//   2. UTF-16 字符串按 uint16 连续存储（只需 2 字节对齐）
+//   3. 可变长字符串之后如果还有 uint32 字段，C++ 端在 buffer 中补齐到 4 字节，
+//      JS 端在读取下一条记录前按相同公式跳过这些 padding
+//   4. JS 读取什么布局，C++ 就必须真实写出什么布局；两边使用完全相同的 align4
+
+// 4 字节向上对齐，与 C++ 的 align4 完全一致。
+// 不用位运算公式 (value + 3) & ~3，避免 32 位有符号溢出影响地址计算。
+function align4(value) {
+  return value + ((4 - (value % 4)) % 4)
 }
 
-// 写入 utf16 编码并以0结尾的字符串，返回起始指针
+// 校验 [start, start + byteLength) 完全落在 WASM 线性内存内。
+// 防御性检查：损坏的长度字段必须在这里抛出明确错误，而不是进入巨大的循环。
+function checkMemRange(start, byteLength, what) {
+  if (!Number.isFinite(byteLength) || byteLength < 0) {
+    throw new Error(`Invalid WASM buffer: ${what} 长度非法: ${byteLength}`)
+  }
+  const end = start + byteLength
+  if (start < 0 || end > HEAPU8.byteLength || end < start) {
+    throw new Error(
+      `Invalid WASM buffer: ${what} 越界 [${start}, ${end}), 内存大小 ${HEAPU8.byteLength}`,
+    )
+  }
+}
+
+// 读取 4 字节无符号整数，返回 { value, next }；ptr 必须 4 字节对齐（协议不变量）
+function readU32(ptr) {
+  if (ptr % 4 !== 0) {
+    throw new Error(`Invalid WASM buffer: u32 读取位置未 4 字节对齐: ${ptr}`)
+  }
+  checkMemRange(ptr, 4, 'u32')
+  return { value: HEAPU32[ptr >>> 2], next: ptr + 4 }
+}
+
+// 读取 [u32 长度][u16 字符串]（ptr 已 4 对齐），返回 { value, next }
+function readUtf16(ptr) {
+  const length = readU32(ptr).value
+  const dataStart = ptr + 4
+  checkMemRange(dataStart, length * 2, `字符串数据(length=${length})`)
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += String.fromCharCode(getHEAPU16()[(dataStart + i * 2) >> 1])
+  }
+  return { value: result, next: dataStart + length * 2 }
+}
+
+// 写入 utf16 编码并以0结尾的字符串，返回起始指针（仅用于向 C++ 传入命令文本）
 function writeString(content) {
   const ptr = _malloc((content.length + 1) * 2)
   const start = ptr / 2
@@ -461,51 +494,64 @@ function writeString(content) {
   return ptr
 }
 
-// 读取 [4字节长度][u16字符串]，并返回字符串后面的位置
-function readStringAndAdvance(ptr) {
-  const length = HEAPU32[ptr >> 2]
-  const result = readString(ptr)
-  return {
-    value: result,
-    next: ptr + 4 + length * 2,
-  }
-}
-
-// 读取 [4字节name长度][4字节description长度][u16 name][u16 description]
-function readSuggestion(ptr, which) {
-  const nameLength = HEAPU32[ptr >> 2]
-  ptr += 4
-  const descriptionLength = HEAPU32[ptr >> 2]
-  ptr += 4
+// 读取一条补全建议记录 [u32 name长度][u32 description长度][u16 name][u16 description]（ptr 已 4 对齐）
+// 返回 { value, next }，value 形如 { id, title, description }
+function readSuggestionRecord(ptr, which) {
+  checkMemRange(ptr, 8, `补全建议头部(记录 ${which})`)
+  const nameLength = HEAPU32[ptr >>> 2]
+  const descriptionLength = HEAPU32[(ptr + 4) >>> 2]
+  checkMemRange(
+    ptr + 8,
+    (nameLength + descriptionLength) * 2,
+    `补全建议数据(记录 ${which}, name=${nameLength}, description=${descriptionLength})`,
+  )
   let title = ''
+  let p = ptr + 8
   for (let i = 0; i < nameLength; i++) {
-    title += String.fromCharCode(getHEAPU16()[ptr >> 1])
-    ptr += 2
+    title += String.fromCharCode(getHEAPU16()[p >> 1])
+    p += 2
   }
   let description = ''
   for (let i = 0; i < descriptionLength; i++) {
-    description += String.fromCharCode(getHEAPU16()[ptr >> 1])
-    ptr += 2
+    description += String.fromCharCode(getHEAPU16()[p >> 1])
+    p += 2
   }
-  return {
-    id: which,
-    title,
-    description,
-  }
+  return { value: { id: which, title, description }, next: p }
 }
 
-// 读取 [4字节数量]([4字节name长度][4字节description长度][u16 name][u16 description])*
-function readSuggestions(ptr) {
-  ptr = alignPtr(ptr)
-  const length = HEAPU32[ptr >> 2]
-  ptr += 4
+// 读取 [u32 数量]([u32 start][u32 end][u32 长度][u16 字符串][补齐到4])*
+function readErrorReasons(basePtr) {
+  let ptr = align4(basePtr)
+  const count = readU32(ptr)
+  ptr = count.next
+  // 防御: 每条错误至少 12 字节定长头，阻止损坏的 count 触发巨大循环
+  checkMemRange(ptr, count.value * 12, '错误数量')
+  const errorReasons = []
+  for (let i = 0; i < count.value; i++) {
+    ptr = align4(ptr) // C++ 在每条记录末尾写入了补齐到 4 的 padding
+    checkMemRange(ptr, 12, `错误记录 ${i}`)
+    const start = HEAPU32[ptr >>> 2]
+    const end = HEAPU32[(ptr + 4) >>> 2]
+    const reason = readUtf16(ptr + 8)
+    errorReasons.push({ start, end, errorReason: reason.value })
+    ptr = reason.next
+  }
+  return errorReasons
+}
+
+// 读取 [u32 数量]([u32 name长度][u32 description长度][u16 name][u16 description][补齐到4])*
+function readSuggestions(basePtr) {
+  let ptr = align4(basePtr)
+  const count = readU32(ptr)
+  ptr = count.next
+  // 防御: 每条补全建议至少 8 字节定长头，阻止损坏的 count 触发巨大循环
+  checkMemRange(ptr, count.value * 8, '补全建议数量')
   const suggestions = []
-  for (let i = 0; i < length; i++) {
-    ptr = alignPtr(ptr)
-    const nameLength = HEAPU32[ptr >> 2]
-    const descriptionLength = HEAPU32[(ptr + 4) >> 2]
-    suggestions.push(readSuggestion(ptr, i))
-    ptr += 8 + nameLength * 2 + descriptionLength * 2
+  for (let i = 0; i < count.value; i++) {
+    ptr = align4(ptr) // C++ 在每条记录末尾写入了补齐到 4 的 padding
+    const record = readSuggestionRecord(ptr, i)
+    suggestions.push(record.value)
+    ptr = record.next
   }
   return suggestions
 }
@@ -535,32 +581,29 @@ export class CHelperCore {
   }
 }
 
-// 读取 [4字节光标位置][4字节长度][u16字符串]
+// 读取 [u32 光标位置][u32 长度][u16 字符串]
 function readClickSuggestionResult(ptr) {
   if (ptr === 0) {
     return null
   }
-  ptr = alignPtr(ptr)
-  const cursorPosition = HEAPU32[ptr >> 2]
-  const text = readString(ptr + 4)
+  const cursor = readU32(align4(ptr))
+  const text = readUtf16(cursor.next)
   return {
-    cursorPosition,
-    newText: text,
+    cursorPosition: cursor.value,
+    newText: text.value,
   }
 }
 
-// 读取 [4字节数量][u8]*
+// 读取 [u32 数量][u8]*
 function readSyntaxTokens(ptr) {
   if (ptr === 0) {
     return null
   }
-  ptr = alignPtr(ptr)
-  const length = HEAPU32[ptr >> 2]
-  ptr += 4
+  const count = readU32(align4(ptr))
+  checkMemRange(count.next, count.value, '语法 token 数量')
   const syntaxTokens = []
-  for (let i = 0; i < length; i++) {
-    syntaxTokens.push(HEAPU8[ptr])
-    ptr += 1
+  for (let i = 0; i < count.value; i++) {
+    syntaxTokens.push(HEAPU8[count.next + i])
   }
   return syntaxTokens
 }
@@ -591,7 +634,7 @@ export class CommandContext {
     if (ptr === 0) {
       return ''
     }
-    return readString(alignPtr(ptr))
+    return readUtf16(align4(ptr)).value
   }
 
   // 获取命令结构
@@ -600,7 +643,7 @@ export class CommandContext {
     if (ptr === 0) {
       return ''
     }
-    return readString(alignPtr(ptr))
+    return readUtf16(align4(ptr)).value
   }
 
   // 获取指定位置的参数注释
@@ -609,33 +652,16 @@ export class CommandContext {
     if (ptr === 0) {
       return ''
     }
-    return readString(alignPtr(ptr))
+    return readUtf16(align4(ptr)).value
   }
 
   // 获取命令的错误原因
   getErrorReasons() {
-    let ptr = _contextGetErrorReasons(this._contextPtr)
+    const ptr = _contextGetErrorReasons(this._contextPtr)
     if (ptr === 0) {
       return []
     }
-    ptr = alignPtr(ptr)
-    const length = HEAPU32[ptr >> 2]
-    ptr += 4
-    const errorReasons = []
-    for (let i = 0; i < length; i++) {
-      const start = HEAPU32[ptr >> 2]
-      ptr += 4
-      const end = HEAPU32[ptr >> 2]
-      ptr += 4
-      const errorReason = readStringAndAdvance(ptr)
-      ptr = errorReason.next
-      errorReasons.push({
-        start,
-        end,
-        errorReason: errorReason.value,
-      })
-    }
-    return errorReasons
+    return readErrorReasons(ptr)
   }
 
   // 获取指定位置的补全提示数量
@@ -649,7 +675,7 @@ export class CommandContext {
     if (ptr === 0) {
       return null
     }
-    return readSuggestion(alignPtr(ptr), which)
+    return readSuggestionRecord(align4(ptr), which).value
   }
 
   // 获取指定位置的所有补全提示

@@ -19,109 +19,157 @@
 #include <chelper/CHelperCore.h>
 #include <emscripten/emscripten.h>
 
+#include <cstdint>
+#include <cstring>
+
 namespace {
 
     // 用于向JS返回数据的缓冲区，JS侧是单线程的，可以安全复用
     std::vector<std::uint8_t> buffer;
 
-    uint8_t *alignPointer(uint8_t *pointer) {
-        return pointer + (reinterpret_cast<size_t>(pointer) % 4);
+    // ---- 手写内存协议（与 CHelper-Web/src/core/libCHelperWeb.js 一一对应）----
+    // 规则：
+    //   1. 所有 uint32 字段都位于 4 字节对齐地址
+    //   2. UTF-16 字符串按 uint16 连续存储（只需 2 字节对齐）
+    //   3. 可变长字符串之后如果还有 uint32 字段，必须补齐到 4 字节对齐
+    //   4. buffer 大小计算与真实写入使用完全相同的规则（同一套 align4/offset）
+    // 所有布局都基于 "4 字节对齐的起始位置" 计算 offset，u32 写入统一走 writeU32
+    // （memcpy，不依赖指针解引用的对齐假设），杜绝未对齐 uint32_t* 解引用。
+
+    // 4 字节向上对齐：C++ 与 JS 必须使用完全相同的公式
+    static size_t align4(size_t value) {
+        return (value + 3) & ~size_t(3);
     }
 
-    // 布局: [4字节长度][u16字符串]
+    // buffer.data() 与下一个 4 字节对齐地址之间的起始 padding 字节数（0~3）
+    static size_t startPadding() {
+        size_t address = reinterpret_cast<size_t>(buffer.data());
+        return align4(address) - address;
+    }
+
+    // 把 buffer 扩容到能容纳 contentSize 字节内容（不含起始 padding），返回起始 padding。
+    // 先预留 contentSize + 3 字节把 data() 地址定住，再收缩到实际大小，
+    // 保证 prepare 之后 buffer 不会再扩容、data() 地址不再变化。
+    // 起始 padding 是协议的一部分，必须真实存在于 buffer 中。
+    static size_t prepareBuffer(size_t contentSize) {
+        buffer.resize(contentSize + 3);
+        size_t padding = startPadding();
+        buffer.resize(padding + contentSize);
+        return padding;
+    }
+
+    // 在 buffer 的 offset 处写入一个 4 字节无符号整数；
+    // 调用方保证 (buffer.data() + offset) % 4 == 0
+    static size_t writeU32(size_t offset, std::uint32_t value) {
+        std::memcpy(buffer.data() + offset, &value, sizeof(value));
+        return offset + sizeof(value);
+    }
+
+    // 写入 UTF-16 字符串: [u32 长度][u16 数据]，返回数据末尾的位置
+    static size_t writeUtf16(size_t offset, const std::u16string &string) {
+        offset = writeU32(offset, static_cast<std::uint32_t>(string.size()));
+        if (!string.empty()) {
+            std::memcpy(buffer.data() + offset, string.data(), string.size() * sizeof(char16_t));
+        }
+        return offset + string.size() * sizeof(char16_t);
+    }
+
+    // 布局（全部相对 4 字节对齐的起始位置）:
+    //   u16字符串     [u32 长度][u16 数据]
+    //   错误列表      [u32 数量]([u32 start][u32 end][u32 长度][u16 数据][补齐到4])*
+    //   补全列表      [u32 数量]([u32 name长度][u32 description长度][u16 name][u16 description][补齐到4])*
+    //   单条补全      [u32 name长度][u32 description长度][u16 name][u16 description]
+    //   点击结果      [u32 光标位置][u32 长度][u16 数据]
+    //   语法token     [u32 数量][u8 数据]*
+
+    // 布局: [u32 长度][u16 字符串]
     const uint8_t *writeU16String(const std::u16string &string) {
-        buffer.resize((reinterpret_cast<size_t>(buffer.data()) % 4) + 4 + string.size() * 2);
-        uint8_t *pointer = alignPointer(buffer.data());
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(string.size());
-        pointer += 4;
-        memcpy(pointer, string.data(), string.size() * 2);
+        size_t offset = prepareBuffer(4 + string.size() * sizeof(char16_t));
+        writeUtf16(offset, string);
         return buffer.data();
     }
 
-    // 布局: [4字节数量]([4字节start][4字节end][4字节长度][u16字符串])*
+    // 布局: [u32 数量]([u32 start][u32 end][u32 长度][u16 字符串][补齐到4])*
     const uint8_t *writeErrorReasons(const std::vector<std::shared_ptr<CHelper::ErrorReason>> &errorReasons) {
-        size_t size = (reinterpret_cast<size_t>(buffer.data()) % 4) + 4;
+        size_t contentSize = sizeof(std::uint32_t);
         for (const auto &item: errorReasons) {
-            size = size + 12 + item->errorReason.size() * 2;
+            // 每条记录: start(4) + end(4) + 字符串长度(4) + 数据(len*2)，之后补齐到 4
+            contentSize = align4(contentSize + 12 + item->errorReason.size() * sizeof(char16_t));
         }
-        buffer.resize(size);
-        uint8_t *pointer = alignPointer(buffer.data());
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(errorReasons.size());
-        pointer += 4;
+        size_t offset = prepareBuffer(contentSize);
+        offset = writeU32(offset, static_cast<std::uint32_t>(errorReasons.size()));
         for (const auto &item: errorReasons) {
-            *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(item->start);
-            pointer += 4;
-            *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(item->end);
-            pointer += 4;
-            *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(item->errorReason.size());
-            pointer += 4;
-            memcpy(pointer, item->errorReason.data(), item->errorReason.size() * 2);
-            pointer += item->errorReason.size() * 2;
+            offset = writeU32(offset, static_cast<std::uint32_t>(item->start));
+            offset = writeU32(offset, static_cast<std::uint32_t>(item->end));
+            offset = writeUtf16(offset, item->errorReason);
+            offset = align4(offset);
         }
         return buffer.data();
     }
 
-    // 布局: [4字节name长度][4字节description长度][u16 name][u16 description]
-    uint8_t *writeSuggestion(uint8_t *pointer, const CHelper::AutoSuggestion::Suggestion &suggestion) {
-        const std::u16string &name = suggestion.content->name;
-        const std::optional<std::u16string> &description = suggestion.content->description;
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(name.size());
-        pointer += 4;
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(description.has_value() ? description->size() : 0);
-        pointer += 4;
-        memcpy(pointer, name.data(), name.size() * 2);
-        pointer += name.size() * 2;
-        if (description.has_value()) {
-            memcpy(pointer, description->data(), description->size() * 2);
-            pointer += description->size() * 2;
-        }
-        return pointer;
-    }
-
+    // 一条补全建议的内容字节数（不含记录间 padding）
     size_t getSuggestionBytes(const CHelper::AutoSuggestion::Suggestion &suggestion) {
-        size_t size = 8;
-        size += suggestion.content->name.size() * 2;
+        size_t size = 8;// name长度 + description长度
+        size += suggestion.content->name.size() * sizeof(char16_t);
         if (suggestion.content->description.has_value()) {
-            size += suggestion.content->description->size() * 2;
+            size += suggestion.content->description->size() * sizeof(char16_t);
         }
         return size;
     }
 
-    // 布局: [4字节数量]([4字节name长度][4字节description长度][u16 name][u16 description])*
+    // 写入一条补全建议: [u32 name长度][u32 description长度][u16 name][u16 description]
+    // 返回数据末尾的位置（不含记录间 padding，由调用方决定是否补齐）。
+    // 注意：name/description 的长度已作为 u32 写在前面，这里只写 u16 数据本身，
+    // 不能使用带长度前缀的 writeUtf16。
+    size_t writeSuggestion(size_t offset, const CHelper::AutoSuggestion::Suggestion &suggestion) {
+        const std::u16string &name = suggestion.content->name;
+        const std::optional<std::u16string> &description = suggestion.content->description;
+        size_t nameLength = name.size();
+        size_t descriptionLength = description.has_value() ? description->size() : 0;
+        offset = writeU32(offset, static_cast<std::uint32_t>(nameLength));
+        offset = writeU32(offset, static_cast<std::uint32_t>(descriptionLength));
+        if (nameLength != 0) {
+            std::memcpy(buffer.data() + offset, name.data(), nameLength * sizeof(char16_t));
+            offset += nameLength * sizeof(char16_t);
+        }
+        if (descriptionLength != 0) {
+            std::memcpy(buffer.data() + offset, description->data(), descriptionLength * sizeof(char16_t));
+            offset += descriptionLength * sizeof(char16_t);
+        }
+        return offset;
+    }
+
+    // 布局: [u32 数量]([u32 name长度][u32 description长度][u16 name][u16 description][补齐到4])*
     const uint8_t *writeSuggestions(const std::vector<CHelper::AutoSuggestion::Suggestion> &suggestions) {
-        size_t size = (reinterpret_cast<size_t>(buffer.data()) % 4) + 4;
+        size_t contentSize = sizeof(std::uint32_t);
         for (const auto &item: suggestions) {
-            size += getSuggestionBytes(item);
+            // 每条记录结束后补齐到 4，保证下一条记录的 u32 字段对齐
+            contentSize = align4(contentSize + getSuggestionBytes(item));
         }
-        buffer.resize(size);
-        uint8_t *pointer = alignPointer(buffer.data());
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(suggestions.size());
-        pointer += 4;
+        size_t offset = prepareBuffer(contentSize);
+        offset = writeU32(offset, static_cast<std::uint32_t>(suggestions.size()));
         for (const auto &item: suggestions) {
-            pointer = writeSuggestion(pointer, item);
+            offset = writeSuggestion(offset, item);
+            offset = align4(offset);
         }
         return buffer.data();
     }
 
-    // 布局: [4字节光标位置][4字节长度][u16字符串]
+    // 布局: [u32 光标位置][u32 长度][u16 字符串]
     const uint8_t *writeSuggestionClickResult(const std::pair<std::u16string, size_t> &result) {
-        buffer.resize((reinterpret_cast<size_t>(buffer.data()) % 4) + 8 + result.first.size() * 2);
-        uint8_t *pointer = alignPointer(buffer.data());
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(result.second);
-        pointer += 4;
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(result.first.size());
-        pointer += 4;
-        memcpy(pointer, result.first.data(), result.first.size() * 2);
+        size_t offset = prepareBuffer(8 + result.first.size() * sizeof(char16_t));
+        offset = writeU32(offset, static_cast<std::uint32_t>(result.second));
+        offset = writeUtf16(offset, result.first);
         return buffer.data();
     }
 
-    // 布局: [4字节数量][u8]*
+    // 布局: [u32 数量][u8]*
     const uint8_t *writeSyntaxTokens(const std::vector<CHelper::SyntaxHighlight::SyntaxTokenType::SyntaxTokenType> &tokenTypes) {
-        buffer.resize((reinterpret_cast<size_t>(buffer.data()) % 4) + 4 + tokenTypes.size());
-        uint8_t *pointer = alignPointer(buffer.data());
-        *reinterpret_cast<uint32_t *>(pointer) = static_cast<uint32_t>(tokenTypes.size());
-        pointer += 4;
-        memcpy(pointer, tokenTypes.data(), tokenTypes.size());
+        size_t offset = prepareBuffer(4 + tokenTypes.size());
+        offset = writeU32(offset, static_cast<std::uint32_t>(tokenTypes.size()));
+        if (!tokenTypes.empty()) {
+            std::memcpy(buffer.data() + offset, tokenTypes.data(), tokenTypes.size());
+        }
         return buffer.data();
     }
 
@@ -203,8 +251,9 @@ EMSCRIPTEN_KEEPALIVE const uint8_t *contextGetSuggestion(const CHelper::CommandC
     if (which >= suggestions.size()) {
         return nullptr;
     }
-    buffer.resize((reinterpret_cast<size_t>(buffer.data()) % 4) + getSuggestionBytes(suggestions[which]));
-    writeSuggestion(alignPointer(buffer.data()), suggestions[which]);
+    // 单条补全建议不带数量前缀，也不需要在末尾补齐（后面没有别的字段）
+    size_t offset = prepareBuffer(getSuggestionBytes(suggestions[which]));
+    writeSuggestion(offset, suggestions[which]);
     return buffer.data();
 }
 
