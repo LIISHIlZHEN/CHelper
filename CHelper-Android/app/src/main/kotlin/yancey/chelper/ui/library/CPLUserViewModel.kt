@@ -72,8 +72,8 @@ class CPLUserViewModel : ViewModel() {
     var isGuest by mutableStateOf(false)
     var isUploadingAvatar by mutableStateOf(false)
 
-    // 个人公开资料：登录回包没有 signature / homepage / userTitle 这些字段，
-    // 编辑面板需要拿这条记录做 form 初值。account 中心和"编辑资料"按钮都用它。
+    // 个人公开资料登录回包没有 signature / homepage / userTitle 这些字段
+    // 编辑面板需要拿这条记录做 form 初值
     var userProfile by mutableStateOf<UserProfileData?>(null)
     var isUpdatingProfile by mutableStateOf(false)
 
@@ -104,8 +104,8 @@ class CPLUserViewModel : ViewModel() {
     }
 
     /**
-     * 把自己完整的公开资料拉一份回来——给"编辑资料"对话框做初值。
-     * 失败静默，不挡用户继续浏览页面。
+     * 把自己完整的公开资料拉一份回来——给编辑资料对话框做初值
+     * 失败静默，不挡用户继续浏览页面
      */
     fun loadUserProfile() {
         val uid = currentUser?.id ?: return
@@ -124,15 +124,13 @@ class CPLUserViewModel : ViewModel() {
     }
 
     /**
-     * 走 PUT users/{id}，跟 UserProfileViewModel 同一个接口；
-     * 但这边是"在账户中心改自己的资料"，所以 uid 固定取 currentUser.id。
+     * 走 PUT users/{id}
+     * uid 固定取 currentUser.id。
      *
-     * 成功后做了几件事：
-     * 1. 重拉 userProfile，刷新本地副本；
-     * 2. 把昵称同步回 currentUser（顶部"账户中心"显示就跟着变了，
-     *    免得用户保存完看着旧昵称以为没生效）；
-     * 3. 失效"我的云端库"缓存——LocalLibraryListScreen 顶上的用户卡片是吃这份缓存的，
-     *    不失效的话回到那里会看到旧昵称/旧头像。
+     * 成功后：
+     * 重拉 userProfile，刷新本地副本
+     * 把昵称同步回 currentUser
+     * 失效云端库缓存——LocalLibraryListScreen 顶上的用户卡片是这份缓存
      */
     fun updateProfile(
         nickname: String,
@@ -162,7 +160,7 @@ class CPLUserViewModel : ViewModel() {
                         currentUser?.let { u ->
                             if (!req.nickname.isNullOrBlank()) u.nickname = req.nickname
                             if (!req.avatarUrl.isNullOrBlank()) u.gravatarUrl = req.avatarUrl
-                            // 触发重组：var by mutableStateOf 的 set 不会因为可变字段内容变化重新发布
+                            // 重组，var by mutableStateOf 的 set 不会因为可变字段内容变化重新发布
                             val tmp = currentUser
                             currentUser = null
                             currentUser = tmp
@@ -409,7 +407,7 @@ class CPLUserViewModel : ViewModel() {
                             currentUser = null
                             currentUser = temp
                         }
-                        // 资料和"我的库"卡片都在吃 userProfile / cloud cache，得一起刷一下
+                        // 资料和卡片都在用 userProfile / cloud cache，需要一起刷新
                         loadUserProfile()
                         CloudLibraryCache.invalidateAll()
                     } else {

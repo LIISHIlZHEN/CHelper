@@ -1,32 +1,23 @@
-<script>
-export default {
-  props: {
-    title: {
-      type: String,
-      required: true,
-    },
-    data: {
-      type: Array,
-      required: true,
-    },
-    showNames: {
-      type: Array,
-      required: true,
-    },
-    show: {
-      type: Boolean,
-      required: true,
-    },
-  },
-  methods: {
-    closeModal() {
-      this.$emit('close')
-    },
-    onSelect(index) {
-      this.$emit('select', this.data[index])
-      this.closeModal()
-    },
-  },
+<script setup lang="ts">
+const props = defineProps<{
+  title: string
+  data: readonly string[]
+  showNames: readonly string[]
+  show: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'select', value: string): void
+}>()
+
+function closeModal(): void {
+  emit('close')
+}
+
+function onSelect(index: number): void {
+  emit('select', props.data[index])
+  closeModal()
 }
 </script>
 

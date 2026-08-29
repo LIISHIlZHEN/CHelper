@@ -1,157 +1,182 @@
-<script>
-import { ALL_BRANCH, ALL_BRANCH_CHINESE, DEFAULT_BRANCH, getCore } from '@/core/CPackManager.js'
-import SelectorModal from '@/components/SelectorModal.vue'
+<script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { ALL_BRANCH, ALL_BRANCH_CHINESE, DEFAULT_BRANCH, getCore } from '@/core/CPackManager'
+import type { Branch } from '@/core/CPackManager'
+import type { CHelperCore, CommandContext, Suggestion } from '@/core/libCHelperWeb'
 import Editor from '@/components/Editor.vue'
+import SelectorModal from '@/components/SelectorModal.vue'
 import IcpFooter from '@/components/IcpFooter.vue'
+import type { EditorValue } from '@/types'
 
-export default {
-  components: {
-    SelectorModal,
-    Editor,
-    IcpFooter,
-  },
-  data() {
-    return {
-      ALL_BRANCH: ALL_BRANCH,
-      ALL_BRANCH_CHINESE: ALL_BRANCH_CHINESE,
-      structure: 'CHelper正在加载中，请稍候',
-      paramHint: '作者：Yancey',
-      errorReason: '',
-      suggestions: [],
-      realSuggestionSize: 0,
-      isBranchSelectorVisible: false,
-      editorValue: {
-        text: '',
-        cursorPosition: 0,
-      },
-      syntaxTokens: [],
-    }
-  },
-  async created() {
-    this.core = undefined
-    this.setCore(await getCore(DEFAULT_BRANCH))
-  },
-  mounted() {
-    this.resizeObserver = new ResizeObserver(() => {
-      this.onSuggestionScroll()
-    })
-    this.resizeObserver.observe(this.$refs.listRef)
-  },
-  unmounted() {
-    this.resizeObserver.disconnect()
-    this.release()
-  },
-  methods: {
-    setCore(newCore) {
-      if (this.core !== undefined) {
-        this.core.release()
-      }
-      this.core = newCore
-      this.onEditorValueChanged(this.editorValue)
-    },
-    release() {
-      if (this.core === undefined) {
-        return
-      }
-      this.core.release()
-      this.core = undefined
-    },
-    updateSuggestions() {
-      this.realSuggestionSize = this.core.getSuggestionSize()
-      this.suggestions = []
-      this.loadMore(Math.floor(this.$refs.listRef.clientHeight / 25))
-    },
-    onEditorValueChanged(newEditorValue) {
-      if (newEditorValue.text.length === 0) {
-        this.editorValue = newEditorValue
-        this.structure = '欢迎使用CHelper'
-        this.paramHint = '作者：Yancey'
-        this.errorReason = ''
-        if (this.core !== undefined) {
-          this.core.onTextChanged(this.editorValue.text, this.editorValue.cursorPosition)
-          this.updateSuggestions()
-        }
-        return
-      }
-      if (this.core === undefined) {
-        return
-      }
-      if (this.editorValue.text === newEditorValue.text) {
-        if (this.editorValue.cursorPosition === newEditorValue.cursorPosition) {
-          return
-        }
-        this.editorValue = newEditorValue
-        this.core.onSelectionChanged(this.editorValue.cursorPosition)
-      } else {
-        this.editorValue = newEditorValue
-        this.core.onTextChanged(this.editorValue.text, this.editorValue.cursorPosition)
-        this.structure = this.core.getStructure()
-        const errorReasons = this.core.getErrorReasons()
-        if (errorReasons.length === 0) {
-          this.errorReason = ''
-        } else if (errorReasons.length === 1) {
-          this.errorReason = errorReasons[0].errorReason
-        } else {
-          this.errorReason = '可能的错误原因：'
-          for (let i = 0; i < errorReasons.length; i++) {
-            this.errorReason += `\n${i + 1}. ${errorReasons[i].errorReason}`
-          }
-        }
-        this.syntaxTokens = this.core.getSyntaxTokens()
-      }
-      this.paramHint = this.core.getParamHint()
-      this.updateSuggestions()
-    },
-    loadMore(count) {
-      if (this.core === undefined) {
-        return
-      }
-      const start = this.suggestions.length
-      const end = Math.min(start + count, this.realSuggestionSize)
-      for (let i = start; i < end; i++) {
-        this.suggestions.push(this.core.getSuggestion(i))
-      }
-    },
-    onSuggestionScroll() {
-      if (
-        this.$refs.listRef.scrollTop + 2 * this.$refs.listRef.clientHeight >=
-        this.$refs.listRef.scrollHeight
-      ) {
-        this.loadMore(Math.floor(this.$refs.listRef.clientHeight / 25))
-      }
-    },
-    onSuggestionClick(which) {
-      if (this.core === undefined) {
-        return
-      }
-      const clickSuggestionResult = this.core.onSuggestionClick(which)
-      if (clickSuggestionResult == null) {
-        return
-      }
-      this.onEditorValueChanged({
-        text: clickSuggestionResult.newText,
-        cursorPosition: clickSuggestionResult.cursorPosition,
-      })
-    },
-    selectBranch() {
-      this.openBranchSelector()
-    },
-    copy() {
-      navigator.clipboard.writeText(this.editorValue.text).catch(function (reason) {
-        window.alert('复制失败：' + reason)
-      })
-    },
-    openBranchSelector() {
-      this.isBranchSelectorVisible = true
-    },
-    closeBranchSelector() {
-      this.isBranchSelectorVisible = false
-    },
-    async onBranchSelect(branch) {
-      this.setCore(await getCore(branch))
-    },
-  },
+const structure = ref('CHelper正在加载中，请稍候')
+const paramHint = ref('作者：Yancey')
+const errorReason = ref('')
+const suggestions = ref<Suggestion[]>([])
+// 补全提示对应的光标位置，加载更多和点击补全提示时使用
+const suggestionIndex = ref(0)
+const realSuggestionSize = ref(0)
+const isBranchSelectorVisible = ref(false)
+const editorValue = ref<EditorValue>({ text: '', cursorPosition: 0 })
+const syntaxTokens = ref<number[]>([])
+
+const listRef = ref<HTMLElement | null>(null)
+
+// 软件内核与命令上下文不参与模板渲染，不需要是响应式数据
+let core: CHelperCore | undefined
+let context: CommandContext | undefined
+let resizeObserver: ResizeObserver | undefined
+
+async function init(): Promise<void> {
+  setCore(await getCore(DEFAULT_BRANCH))
 }
+
+function setCore(newCore: CHelperCore): void {
+  releaseContext()
+  core?.release()
+  core = newCore
+  recreateContext(editorValue.value.text)
+  onEditorValueChanged(editorValue.value)
+}
+
+function release(): void {
+  releaseContext()
+  core?.release()
+  core = undefined
+}
+
+function releaseContext(): void {
+  context?.release()
+  context = undefined
+}
+
+function recreateContext(text: string): void {
+  releaseContext()
+  if (core === undefined) {
+    return
+  }
+  context = core.createContext(text)
+}
+
+function updateSuggestions(): void {
+  if (context === undefined) {
+    return
+  }
+  // 补全提示是按光标位置计算的，记住这个位置，加载更多和点击补全时都要用同一个位置
+  suggestionIndex.value = editorValue.value.cursorPosition
+  realSuggestionSize.value = context.getSuggestionSize(suggestionIndex.value)
+  suggestions.value = []
+  loadMore(Math.floor((listRef.value?.clientHeight ?? 0) / 25))
+}
+
+function onEditorValueChanged(newEditorValue: EditorValue): void {
+  if (newEditorValue.text.length === 0) {
+    editorValue.value = newEditorValue
+    structure.value = '欢迎使用CHelper'
+    paramHint.value = '作者：Yancey'
+    errorReason.value = ''
+    recreateContext(newEditorValue.text)
+    updateSuggestions()
+    return
+  }
+  if (context === undefined) {
+    return
+  }
+  if (editorValue.value.text === newEditorValue.text) {
+    if (editorValue.value.cursorPosition === newEditorValue.cursorPosition) {
+      return
+    }
+    // 只有光标改变，无需重新解析，直接用新的光标位置查询
+    editorValue.value = newEditorValue
+  } else {
+    // 文本内容改变，重新解析命令生成新的命令上下文
+    editorValue.value = newEditorValue
+    recreateContext(newEditorValue.text)
+    structure.value = context.getStructure()
+    const errorReasons = context.getErrorReasons()
+    if (errorReasons.length === 0) {
+      errorReason.value = ''
+    } else if (errorReasons.length === 1) {
+      errorReason.value = errorReasons[0].errorReason
+    } else {
+      errorReason.value = '可能的错误原因：'
+      for (let i = 0; i < errorReasons.length; i++) {
+        errorReason.value += `\n${i + 1}. ${errorReasons[i].errorReason}`
+      }
+    }
+    syntaxTokens.value = context.getSyntaxTokens()
+  }
+  paramHint.value = context.getParamHint(editorValue.value.cursorPosition)
+  updateSuggestions()
+}
+
+function loadMore(count: number): void {
+  if (context === undefined) {
+    return
+  }
+  const start = suggestions.value.length
+  const end = Math.min(start + count, realSuggestionSize.value)
+  for (let i = start; i < end; i++) {
+    const suggestion = context.getSuggestion(suggestionIndex.value, i)
+    if (suggestion !== null) {
+      suggestions.value.push(suggestion)
+    }
+  }
+}
+
+function onSuggestionScroll(): void {
+  const list = listRef.value
+  if (list && list.scrollTop + 2 * list.clientHeight >= list.scrollHeight) {
+    loadMore(Math.floor(list.clientHeight / 25))
+  }
+}
+
+function onSuggestionClick(which: number): void {
+  if (context === undefined) {
+    return
+  }
+  const clickSuggestionResult = context.applySuggestion(editorValue.value.cursorPosition, which)
+  if (clickSuggestionResult == null) {
+    return
+  }
+  onEditorValueChanged({
+    text: clickSuggestionResult.newText,
+    cursorPosition: clickSuggestionResult.cursorPosition,
+  })
+}
+
+function copy(): void {
+  navigator.clipboard.writeText(editorValue.value.text).catch((reason: unknown) => {
+    window.alert('复制失败：' + String(reason))
+  })
+}
+
+function openBranchSelector(): void {
+  isBranchSelectorVisible.value = true
+}
+
+function closeBranchSelector(): void {
+  isBranchSelectorVisible.value = false
+}
+
+async function onBranchSelect(branch: string): Promise<void> {
+  setCore(await getCore(branch as Branch))
+}
+
+onMounted(() => {
+  resizeObserver = new ResizeObserver(() => {
+    onSuggestionScroll()
+  })
+  if (listRef.value) {
+    resizeObserver.observe(listRef.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  release()
+})
+
+void init()
 </script>
 
 <template>
@@ -172,7 +197,7 @@ export default {
     </main>
     <footer>
       <div class="below">
-        <button class="button" @click="selectBranch">分支</button>
+        <button class="button" @click="openBranchSelector">分支</button>
         <Editor
           :modelValue="editorValue"
           :syntaxTokens="syntaxTokens"
@@ -184,8 +209,8 @@ export default {
     </footer>
     <SelectorModal
       :title="'选择分支'"
-      :data="this.ALL_BRANCH"
-      :showNames="this.ALL_BRANCH_CHINESE"
+      :data="ALL_BRANCH"
+      :showNames="ALL_BRANCH_CHINESE"
       :show="isBranchSelectorVisible"
       @close="closeBranchSelector"
       @select="onBranchSelect"
@@ -293,7 +318,8 @@ main {
 
 * {
   font-size: 15px;
-  font-family: Inter, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  font-family:
+    Inter, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    '微软雅黑', Arial, sans-serif;
 }
 </style>

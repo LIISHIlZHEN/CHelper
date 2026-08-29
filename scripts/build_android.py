@@ -5,16 +5,14 @@ import sys
 
 
 def get_gradlew() -> str:
-    if sys.platform == "win32":
-        return "gradlew.bat"
-    return "gradlew"
+    gradlew = "gradlew.bat" if sys.platform == "win32" else "gradlew"
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "CHelper-Android", gradlew)
+    )
 
 
 def build_android_apk():
-    if sys.platform == "win32":
-        gradlew = "gradlew.bat"
-    else:
-        gradlew = "gradlew"
+    gradlew = get_gradlew()
     android_dir = os.path.abspath(os.path.join(".", "CHelper-Android"))
     release_note = os.path.join(
         android_dir, "app", "src", "main", "assets", "about", "release_note.txt"

@@ -17,18 +17,11 @@
  */
 
 #include <chelper/CHelperCore.h>
-#include <chelper/auto_suggestion/AutoSuggestion.h>
-#include <chelper/command_structure/CommandStructure.h>
-#include <chelper/linter/Linter.h>
-#include <chelper/parameter_hint/ParameterHint.h>
-#include <chelper/parser/Parser.h>
-#include <chelper/syntax_highlight/SyntaxHighlight.h>
 
 namespace CHelper {
 
-    CHelperCore::CHelperCore(std::unique_ptr<CPack> cpack, ASTNode astNode)
-        : cpack(std::move(cpack)),
-          astNode(std::move(astNode)) {}
+    CHelperCore::CHelperCore(std::shared_ptr<const CPack> cpack)
+        : cpack(std::move(cpack)) {}
 
     CHelperCore *CHelperCore::create(const std::function<std::unique_ptr<CPack>()> &getCPack) {
         try {
@@ -40,8 +33,7 @@ namespace CHelper {
             const auto end = std::chrono::high_resolution_clock::now();
 #endif
             SPDLOG_INFO("CPack load successfully ({})", FORMAT_ARG(std::chrono::duration_cast<std::chrono::milliseconds>(end - start)));
-            ASTNode astNode = Parser::parse(u"", *cPack);
-            return new CHelperCore(std::move(cPack), std::move(astNode));
+            return new CHelperCore(std::move(cPack));
         } catch (const std::exception &e) {
             SPDLOG_ERROR("CPack load failed");
             CHelper::Profile::printAndClear(e);
@@ -95,74 +87,16 @@ namespace CHelper {
     }
 #endif
 
-    void CHelperCore::onTextChanged(const std::u16string &content, size_t index0) {
-        if (input != content) [[likely]] {
-            input = content;
-            astNode = Parser::parse(input, *cpack);
-            suggestions = nullptr;
-        }
-        onSelectionChanged(index0);
-    }
-
-    void CHelperCore::onSelectionChanged(size_t index0) {
-        if (index != index0) [[likely]] {
-            index = index0;
-            suggestions = nullptr;
-        }
-    }
-
-    [[nodiscard]] const CPack &CHelperCore::getCPack() const {
+    const CPack &CHelperCore::getCPack() const {
         return *cpack;
     }
 
-    [[nodiscard]] const ASTNode *CHelperCore::getAstNode() const {
-        return &astNode;
+    CommandContext *CHelperCore::createContext(std::u16string command) const {
+        return new CommandContext(cpack, std::move(command));
     }
 
-    [[nodiscard]] std::u16string CHelperCore::getParamHint() const {
-        return ParameterHint::getParameterHint(astNode, index).value_or(u"未知");
-    }
-
-    [[nodiscard]] std::vector<std::shared_ptr<ErrorReason>> CHelperCore::getErrorReasons() const {
-        return Linter::getErrorReasons(astNode);
-    }
-
-    std::vector<AutoSuggestion::Suggestion> *CHelperCore::getSuggestions() {
-        if (suggestions == nullptr) [[likely]] {
-            suggestions = std::make_shared<std::vector<AutoSuggestion::Suggestion>>(AutoSuggestion::getSuggestions(astNode, index).collect());
-        }
-        return suggestions.get();
-    }
-
-    [[nodiscard]] std::u16string CHelperCore::getStructure() const {
-        return CommandStructure::getStructure(astNode);
-    }
-
-    [[nodiscard]] SyntaxHighlight::SyntaxResult CHelperCore::getSyntaxResult() const {
-        return SyntaxHighlight::getSyntaxResult(astNode);
-    }
-
-    std::optional<std::pair<std::u16string, size_t>> CHelperCore::onSuggestionClick(size_t which) {
-        if (suggestions == nullptr || which >= suggestions->size()) [[unlikely]] {
-            return std::nullopt;
-        }
-        const auto &suggestion = (*suggestions)[which];
-        std::u16string_view before = astNode.tokens.string();
-        if (suggestion.content->name == u" " && (suggestion.start == 0 || before[suggestion.start - 1] == u' ')) {
-            return {{std::u16string(before), suggestion.start}};
-        }
-        std::pair<std::u16string, size_t> result = {
-                std::u16string().append(before.substr(0, suggestion.start)).append(suggestion.content->name).append(before.substr(suggestion.end)),
-                suggestion.start + suggestion.content->name.length()};
-        if (suggestion.end != before.length()) [[unlikely]] {
-            return result;
-        }
-        onTextChanged(result.first, result.second);
-        if (suggestion.isAddSpace && astNode.isAllSpaceError()) [[likely]] {
-            result.first.append(u" ");
-            result.second++;
-        }
-        return result;
+    void CHelperCore::deleteContext(CommandContext *context) {
+        delete context;
     }
 
     std::u16string CHelperCore::old2new(const Old2New::BlockFixData &blockFixData, std::u16string old) {

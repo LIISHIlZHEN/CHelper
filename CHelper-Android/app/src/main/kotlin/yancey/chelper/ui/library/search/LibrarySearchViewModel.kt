@@ -168,17 +168,7 @@ class LibrarySearchViewModel : ViewModel() {
             val tagsMatch = localFunc.tags?.any { it.lowercase().contains(searchLower) } == true
             val noteMatch = localFunc.note?.lowercase()?.contains(searchLower) == true
             if (nameMatch || tagsMatch || noteMatch) {
-                tempMatches.add(
-                    LibraryFunction().apply {
-                        name = localFunc.name
-                        note = localFunc.note
-                        tags = localFunc.tags
-                        // 将本地包 ID 转为负数，防止和远端冲突，并在 UI 中做区分
-                        id = -(localFunc.id ?: 0)
-                        author = AuthorInfo(name = "[本地包]")
-                        version = localFunc.version
-                    }
-                )
+                tempMatches.add(localFunc.copy(author = AuthorInfo(name = "[本地包]")))
             }
         }
 

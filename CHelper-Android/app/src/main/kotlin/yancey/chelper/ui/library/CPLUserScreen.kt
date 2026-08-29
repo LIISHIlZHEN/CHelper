@@ -68,10 +68,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.hjq.toast.Toaster
 import yancey.chelper.R
 import yancey.chelper.network.library.data.LibraryFunction
+import yancey.chelper.ui.FavoriteLibraryListScreenKey
+import yancey.chelper.ui.ActivityCenterScreenKey
 import yancey.chelper.ui.MessageScreenKey
 import yancey.chelper.ui.UserProfileScreenKey
 import yancey.chelper.ui.common.CHelperTheme
@@ -141,7 +143,9 @@ fun CPLUserScreen(
 
     RootViewWithHeaderAndCopyright(
         title = stringResource(R.string.layout_user_profile_title),
-        showBack = !isTab,
+        // 与命令库首页一致：始终显示返回；tab 内用 popBackStack，独立路由走系统返回
+        showBack = true,
+        onBack = if (isTab) ({ navController.popBackStack() }) else null,
     ) {
         Box(
             modifier = Modifier
@@ -298,8 +302,6 @@ fun UserProfileView(
 
         Spacer(Modifier.height(24.dp))
 
-        // 编辑个人资料：把"上传头像 / 改昵称 / 改主页 / 改签名"集中到一处。
-        // 头像点击仍然能直接触发上传（快捷路径），但完整资料维护走这个卡片更直观。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -369,6 +371,87 @@ fun UserProfileView(
                         fontWeight = FontWeight.Bold
                     )
                 )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(4.dp, RoundedCornerShape(16.dp))
+                .background(
+                    CHelperTheme.colors.backgroundComponentNoTranslate,
+                    RoundedCornerShape(16.dp)
+                )
+                .clickable { navController.navigate(ActivityCenterScreenKey()) }
+                .padding(20.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 10.dp)
+            ) {
+                Icon(id = R.drawable.ic_heart, modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "CommandLab 创作季",
+                        style = TextStyle(
+                            color = CHelperTheme.colors.textMain,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Text(
+                        text = "积分、商店、流水与 Tier 有效期",
+                        style = TextStyle(
+                            color = CHelperTheme.colors.textSecondary,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // 云端库收藏：独立列表，点进去进公有详情
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(4.dp, RoundedCornerShape(16.dp))
+                .background(
+                    CHelperTheme.colors.backgroundComponentNoTranslate,
+                    RoundedCornerShape(16.dp)
+                )
+                .clickable {
+                    navController.navigate(FavoriteLibraryListScreenKey)
+                }
+                .padding(20.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 10.dp)
+            ) {
+                Icon(id = R.drawable.ic_heart, modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "我的收藏",
+                        style = TextStyle(
+                            color = CHelperTheme.colors.textMain,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Text(
+                        text = "收藏的云端命令库",
+                        style = TextStyle(
+                            color = CHelperTheme.colors.textSecondary,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -457,6 +540,35 @@ fun GuestUserProfileView(
             )
         )
         Spacer(Modifier.height(32.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(4.dp, RoundedCornerShape(16.dp))
+                .background(
+                    CHelperTheme.colors.backgroundComponentNoTranslate,
+                    RoundedCornerShape(16.dp)
+                )
+                .clickable { navController.navigate(FavoriteLibraryListScreenKey) }
+                .padding(16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Icon(id = R.drawable.ic_heart, modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "我的收藏",
+                    style = TextStyle(
+                        color = CHelperTheme.colors.textMain,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()

@@ -6,13 +6,13 @@ on:
     paths:
       - '.github/workflows/build-wasm.yml'
       - 'CHelper-Core/**'
-      - 'script/**'
+      - 'scripts/**'
   pull_request:
     branches: [ "master", "dev" ]
     paths:
       - '.github/workflows/build-wasm.yml'
       - 'CHelper-Core/**'
-      - 'script/**'
+      - 'scripts/**'
 
 jobs:
   build:
@@ -20,11 +20,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: 'recursive'
 
       - name: Install dependencies
         run: sudo apt-get install -y cmake ninja-build
 
       - name: Build Web Core
-        run: python ./script/build_web_core.py
+        run: python ./scripts/build_web_core.py

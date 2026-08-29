@@ -1,11 +1,5 @@
-<script>
-export default {
-  computed: {
-    icpText() {
-      return import.meta.env.VITE_ICP_TEXT
-    },
-  },
-}
+<script setup lang="ts">
+const icpText = import.meta.env.VITE_ICP_TEXT as string | undefined
 </script>
 
 <template>
@@ -27,8 +21,9 @@ export default {
   text-decoration: none;
   font-size: 13px;
   text-align: center;
-  font-family: Inter, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  font-family:
+    Inter, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    '微软雅黑', Arial, sans-serif;
 }
 
 .icpLink:hover {

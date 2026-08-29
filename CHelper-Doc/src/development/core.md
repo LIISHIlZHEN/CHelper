@@ -41,6 +41,20 @@ CHelper 内核包含了语法解析、错误检测、补全提示、命令结构
 
 通过遍历 AST，即可完成补全提示、命令结构、参数解释和语法高亮。所有功能采用模块化设计，方便了功能的维护和扩展。
 
+## 命令上下文
+
+内核本身不保存任何文本和光标状态，所有的命令相关功能都在`CommandContext`上执行。通过命令文本解析出AST并生成独立的命令上下文，它没有任何可变状态，所有的操作都通过参数传入位置：
+
+- `getStructure()`：获取命令结构
+- `getParamHint(index)`：获取指定位置的参数注释
+- `getSuggestions(index)`：获取指定位置的补全建议
+- `getSyntaxResult()`：获取语法高亮
+- `getErrorReasons()`：获取错误原因
+- `getNodeCount()`：获取最佳解析路径中已经匹配的命令语义节点数量
+- `applySuggestion(index, which)`：把补全建议应用到命令文本，不修改自身状态
+
+`CHelperCore`负责持有资源包(CPack)，通过`CHelperCore::createContext`可以创建`CommandContext`。由于`CommandContext`没有可变状态，同一条命令解析一次后，可以被多个线程同时读取；也可以基于同一个资源包为多条命令创建多个`CommandContext`并行工作。`CommandContext`持有资源包的共享引用，即使`CHelperCore`先被释放，`CommandContext`依然可用。Android 和 Web 接口中的`CommandContext`都是对这个类的封装。
+
 ## 编译
 
 CHelper 使用 CMake 项目构建系统，同时支持 GCC、Clang、MSVC 等主流编译器，也同时支持 Windows、Linux、MacOS 等主流的操作系统。在你电脑安装好 CMake 和任意的 c++ 编译工具链后，即可通过下面的命令构建 CHelper，命令仅作参考：
@@ -91,10 +105,10 @@ cd ./CHelper/CHelper-Web
 cmake -B build -D CMAKE_BUILD_TYPE=MinSizeRel -D CMAKE_TOOLCHAIN_FILE="./emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake" -G "Ninja"
 cd build
 cmake --build . --target CHelperWeb --parallel
-emcc libCHelperWeb.a libCHelperNoFilesystemCore.a 3rdparty/fmt/libfmt.a 3rdparty/spdlog/libspdlog.a 3rdparty/xxHash/cmake_unofficial/libxxhash.a -Os -o libCHelperWeb.js -s FILESYSTEM=0 -s DISABLE_EXCEPTION_CATCHING=1 -s ALLOW_MEMORY_GROWTH -s ENVIRONMENT="web" -s EXPORTED_FUNCTIONS="['_init','_release','_onTextChanged','_onSelectionChanged','_getParamHint','_getErrorReasons','_getSuggestionSize','_getSuggestion','_getAllSuggestions','_onSuggestionClick','_getSyntaxTokens','_malloc','_free']" -s WASM=1 -s "EXPORTED_RUNTIME_METHODS=[]"
+emcc libCHelperWeb.a libCHelperNoFilesystemCore.a _deps/fmt-build/libfmt.a _deps/spdlog-build/libspdlog.a _deps/xxhash-build/libxxhash.a -Os -o libCHelperWeb.js -s FILESYSTEM=0 -s DISABLE_EXCEPTION_CATCHING=1 -s ALLOW_MEMORY_GROWTH -s ENVIRONMENT="web" -s EXPORTED_FUNCTIONS="['_init','_release','_onTextChanged','_onSelectionChanged','_getParamHint','_getErrorReasons','_getSuggestionSize','_getSuggestion','_getAllSuggestions','_onSuggestionClick','_getSyntaxTokens','_createCommandContext','_releaseCommandContext','_contextGetCommand','_contextGetStructure','_contextGetParamHint','_contextGetErrorReasons','_contextGetSuggestionSize','_contextGetSuggestion','_contextGetAllSuggestions','_contextApplySuggestion','_contextGetSyntaxTokens','_contextGetNodeCount','_malloc','_free']" -s WASM=1 -s "EXPORTED_RUNTIME_METHODS=[]"
 cd ..
 
-python ./script/patch-wasm.py
+python ./scripts/patch-wasm.py
 ```
 
 ## 加入我们

@@ -27,8 +27,9 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
 import androidx.appcompat.widget.AppCompatEditText
-import yancey.chelper.R
 import yancey.chelper.core.ErrorReason
 import yancey.chelper.core.SelectedString
 import yancey.chelper.core.Theme
@@ -41,10 +42,12 @@ class CommandEditText : AppCompatEditText {
     private var onSelectionChanged: (() -> Unit)? = null
     private var errorReasons: Array<ErrorReason>? = null
     private var theme: Theme? = null
+    private var normalColor: Int = 0
     private var errorReasonPaint: Paint? = null
     private var errorReasonOffsetY = 0
     private var lastTokens: IntArray? = null
     private var isSettingString = false
+    private var isEditorMode: Boolean? = null
 
     constructor(context: Context) : super(context) {
         init()
@@ -78,8 +81,43 @@ class CommandEditText : AppCompatEditText {
         this.onSelectionChanged = onSelectionChanged
     }
 
-    fun setTheme(theme: Theme) {
+    fun setTheme(theme: Theme, normalColor: Int) {
+        if (this.theme == theme && this.normalColor == normalColor) {
+            return
+        }
         this.theme = theme
+        this.normalColor = normalColor
+        // 主题或普通文本颜色变化后，需要忽略缓存强制重新上色
+        lastTokens = null
+    }
+
+    /**
+     * 编辑器模式只改变显示方式，命令本身仍保持单行，避免复制出带换行符的无效命令。
+     */
+    fun setEditorMode(enabled: Boolean) {
+        if (isEditorMode == enabled) return
+        isEditorMode = enabled
+
+        isSingleLine = true
+        maxLines = if (enabled) Int.MAX_VALUE else 1
+        setHorizontallyScrolling(!enabled)
+        gravity = if (enabled) Gravity.TOP or Gravity.START else Gravity.CENTER_VERTICAL
+        val padding = if (enabled) {
+            TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                8f,
+                resources.displayMetrics
+            ).toInt()
+        } else {
+            0
+        }
+        setPadding(padding, padding, padding, padding)
+        isVerticalScrollBarEnabled = enabled
+        overScrollMode = if (enabled) View.OVER_SCROLL_IF_CONTENT_SCROLLS else View.OVER_SCROLL_NEVER
+        requestLayout()
+        post {
+            bringPointIntoView(selectionStart.coerceAtLeast(0))
+        }
     }
 
     override fun onTextChanged(
@@ -155,7 +193,9 @@ class CommandEditText : AppCompatEditText {
             return
         }
 
-        val normalColor = context.getColor(R.color.text_main)
+        // 普通文本颜色跟随调用方传入的当前主题，而不是按系统 uiMode 解析的资源颜色，
+        // 否则应用设置为夜间、系统为亮色时（例如悬浮窗）会解析出亮色主题的文字颜色
+        val normalColor = this.normalColor
         val targetSpans = mutableListOf<SpanInfo>()
 
         var lastIndex = 0
@@ -235,6 +275,24 @@ class CommandEditText : AppCompatEditText {
      */
     fun setErrorReasons(errorReasons: Array<ErrorReason>?) {
         this.errorReasons = errorReasons
+        invalidate()
+    }
+
+    /**
+     * 聚焦并选中一条错误对应的文本，让长命令不用靠手动横向拖动定位。
+     */
+    fun focusErrorRange(start: Int, end: Int): Boolean {
+        val length = text?.length ?: 0
+        if (start < 0 || end < 0 || start > end || end > length) {
+            return false
+        }
+
+        requestFocus()
+        setSelection(start, end)
+        post {
+            bringPointIntoView(start)
+        }
+        return true
     }
 
     override fun draw(canvas: Canvas) {
@@ -247,7 +305,7 @@ class CommandEditText : AppCompatEditText {
             for (errorReason in errorReasons) {
                 var start = errorReason.start
                 var end = errorReason.end
-                if (start < 0 || end > length) {
+                if (start < 0 || end < start || end > length) {
                     continue
                 }
                 if (start == end && length != 0) {
@@ -276,23 +334,23 @@ class CommandEditText : AppCompatEditText {
                     canvas.drawLine(
                         layout.getPrimaryHorizontal(start),
                         firstLineY,
-                        layout.getLineEnd(lineStart).toFloat(),
+                        layout.getPrimaryHorizontal(layout.getLineEnd(lineStart)),
                         firstLineY,
                         errorReasonPaint!!
                     )
-                    for (i in lineStart + 1..<lineEnd - 1) {
+                    for (i in lineStart + 1 until lineEnd) {
                         val y = (layout.getLineBottom(i) + errorReasonOffsetY).toFloat()
                         canvas.drawLine(
-                            layout.getLineStart(i).toFloat(),
+                            layout.getPrimaryHorizontal(layout.getLineStart(i)),
                             y,
-                            layout.getLineEnd(i).toFloat(),
+                            layout.getPrimaryHorizontal(layout.getLineEnd(i)),
                             y,
                             errorReasonPaint!!
                         )
                     }
                     val lastLineY = (layout.getLineBottom(lineEnd) + errorReasonOffsetY).toFloat()
                     canvas.drawLine(
-                        layout.getLineStart(lineEnd).toFloat(),
+                        layout.getPrimaryHorizontal(layout.getLineStart(lineEnd)),
                         lastLineY,
                         layout.getSecondaryHorizontal(end),
                         lastLineY,

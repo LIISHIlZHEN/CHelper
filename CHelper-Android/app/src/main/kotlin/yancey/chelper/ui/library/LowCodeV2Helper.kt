@@ -78,7 +78,7 @@ fun LowCodeV2HelperDialog(
     val results =
         validateMCDContent(rawContent).lines.associateBy { it.lineNumber }
 
-    // 状态记录: map of lineNumber -> stateString (例如 ">C", ">I!")
+    // map of lineNumber -> stateString 
     val lineStates = remember { mutableStateOf(mutableMapOf<Int, String>()) }
 
     var lastEffectiveType: LineType? = null
@@ -125,7 +125,7 @@ fun LowCodeV2HelperDialog(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "V2 标记助手",
+                    text = "V2标记辅助",
                     style = TextStyle(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
@@ -134,7 +134,7 @@ fun LowCodeV2HelperDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "以下指令缺少方块状态，请为它们分配：",
+                    text = "以下指令缺少方块状态，请分配：",
                     style = TextStyle(fontSize = 13.sp, color = CHelperTheme.colors.textSecondary)
                 )
                 Spacer(Modifier.height(12.dp))
@@ -147,7 +147,7 @@ fun LowCodeV2HelperDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "当前脚本中所有指令都已有正确的前置方块推断状态，无需再标记。",
+                            "当前所有指令都已有正确的前置方块推断状态，无需再标记。",
                             style = TextStyle(
                                 color = CHelperTheme.colors.textHint,
                                 textAlign = TextAlign.Center
@@ -255,7 +255,7 @@ private fun DialogActionBar(
 }
 
 /**
- * 单行命令的低代码配置卡片
+ * 单行命令的配置卡片
  * 显示行号 + 命令文本，提供方块类型选择芯片和条件/红石/延迟开关
  */
 @Composable

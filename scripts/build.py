@@ -56,16 +56,18 @@ if __name__ == "__main__":
     ):
         print("please download pnpm")
         sys.exit(-1)
-    if (
-        subprocess.run(
-            [get_gradlew(), "--version"],
-            capture_output=True,
-            check=False,
-            cwd=os.path.abspath(os.path.join(".", "CHelper-Android")),
-        ).returncode
-        != 0
-    ):
-        print("please download JDK (required by gradle wrapper)")
+    gradle_check = subprocess.run(
+        [get_gradlew(), "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=os.path.abspath(os.path.join(".", "CHelper-Android")),
+    )
+    if gradle_check.returncode != 0:
+        print("Gradle wrapper check failed. Please verify the JDK and Gradle setup.")
+        output = (gradle_check.stderr or gradle_check.stdout).strip()
+        if output:
+            print(output)
         sys.exit(-1)
     toolchain_dir = os.path.join(os.getcwd(), "toolchain")
     os.makedirs(toolchain_dir, exist_ok=True)

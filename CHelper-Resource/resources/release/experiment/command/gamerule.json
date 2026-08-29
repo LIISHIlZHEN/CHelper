@@ -42,14 +42,14 @@
       "type": "NORMAL_ID",
       "brief": "游戏规则",
       "description": "要设置或查询的游戏规则",
-      "ignoreError": true,
+      "ignoreError": false,
       "key": "gameRuleBoolean"
     },
     "<rule: IntGameRule>": {
       "type": "NORMAL_ID",
       "brief": "游戏规则",
       "description": "要设置或查询的游戏规则",
-      "ignoreError": true,
+      "ignoreError": false,
       "key": "gameRuleInteger"
     },
     "playerWaypoints": {

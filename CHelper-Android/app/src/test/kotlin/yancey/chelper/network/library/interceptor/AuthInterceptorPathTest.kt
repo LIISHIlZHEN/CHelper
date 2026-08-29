@@ -50,7 +50,8 @@ class AuthInterceptorPathTest {
             "/leaderboard",
             "/messages/unread_count",
             "/profile/me",
-            "/announcement"
+            "/announcement",
+            "/auth/chelper/web-sso/authorize",
         )
         for (p in businessPaths) {
             assertFalse("业务路径 $p 不应被识别为认证端点", isAuthEndpoint(p))

@@ -62,11 +62,12 @@ namespace CHelper::Test {
                                     const std::vector<std::u16string> &commands) {
         std::shared_ptr<CHelperCore> core;
         try {
-            std::unique_ptr<CPack> cPack = CPack::createByDirectory(cpackPath);
-            ASTNode astNode = Parser::parse(u"", *cPack);
-            core = std::make_shared<CHelperCore>(std::move(cPack), std::move(astNode));
+            core = std::shared_ptr<CHelperCore>(CHelperCore::createByDirectory(cpackPath));
         } catch (const std::exception &e) {
             Profile::printAndClear(e);
+            FAIL();
+        }
+        if (core == nullptr) [[unlikely]] {
             FAIL();
         }
         bool flag = false;
@@ -78,19 +79,19 @@ namespace CHelper::Test {
                         startSuggestions, endSuggestions,
                         startStructure, endStructure;
                 startParse = std::chrono::high_resolution_clock::now();
-                core->onTextChanged(command, command.length());
+                std::unique_ptr<CommandContext> context(core->createContext(command));
                 endParse = std::chrono::high_resolution_clock::now();
                 startDescription = std::chrono::high_resolution_clock::now();
-                auto description = core->getParamHint();
+                auto description = context->getParamHint(command.length());
                 endDescription = std::chrono::high_resolution_clock::now();
                 startErrorReasons = std::chrono::high_resolution_clock::now();
-                auto errorReasons = core->getErrorReasons();
+                auto errorReasons = context->getErrorReasons();
                 endErrorReasons = std::chrono::high_resolution_clock::now();
                 startSuggestions = std::chrono::high_resolution_clock::now();
-                auto suggestions = core->getSuggestions();
+                auto suggestions = context->getSuggestions(command.length());
                 endSuggestions = std::chrono::high_resolution_clock::now();
                 startStructure = std::chrono::high_resolution_clock::now();
-                auto structure = core->getStructure();
+                auto structure = context->getStructure();
                 endStructure = std::chrono::high_resolution_clock::now();
                 SPDLOG_INFO("parse: {}", FORMAT_ARG(utf8::utf16to8(command)));
                 SPDLOG_INFO("parse in {}", FORMAT_ARG(std::chrono::duration_cast<std::chrono::milliseconds>(endParse - startParse)));
@@ -116,12 +117,12 @@ namespace CHelper::Test {
                                     utf8::utf16to8(command.substr((errorReason->end))));
                     }
                 }
-                if (suggestions->empty()) {
+                if (suggestions.empty()) {
                     SPDLOG_INFO("no suggestion");
                 } else {
-                    SPDLOG_INFO("{} suggestions:", suggestions->size());
-                    for (size_t i = 0; i < suggestions->size(); ++i) {
-                        const auto &item = (*suggestions)[i];
+                    SPDLOG_INFO("{} suggestions:", suggestions.size());
+                    for (size_t i = 0; i < suggestions.size(); ++i) {
+                        const auto &item = suggestions[i];
                         if (i == 30) {
                             SPDLOG_INFO("...");
                             break;
@@ -135,7 +136,7 @@ namespace CHelper::Test {
                                                         .append(command.substr(item.end));
                         std::u16string greenPart = item.content->name;
                         if (item.end == command.length()) {
-                            ASTNode astNode = Parser::parse(result, core->getCPack());
+                            ASTNode astNode = Parser::parse(result, context->getCPack());
                             if (item.isAddSpace && astNode.isAllSpaceError()) {
                                 greenPart.push_back(u' ');
                             }
@@ -185,13 +186,14 @@ TEST(MainTest, LexCommand) {
                     uR"(execute if block ~~~ command_block run)",
                     uR"(execute if block ~~~ bamboo)",
                     uR"(give @s apple 12 1)",
+                    uR"(list)",
+                    uR"(/list)",
                     uR"(spreadplayers ~ ~ 0 1200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)",
                     uR"(camerashake add @a 10000000000000000000000000000000000000000000000000000 3402823466385288598117041834845169254401)",
                     uR"(setblock ~~~ candle_cake[lit=)",
                     uR"(give @s repeating_command_block)",
                     uR"(list)",
-                    uR"(/list)"
-            });
+                    uR"(/list)"});
 }
 
 TEST(MainTest, ParseCommand) {
@@ -222,11 +224,30 @@ TEST(MainTest, ParseCommand) {
                     uR"(execute if block ~~~ command_block run)",
                     uR"(execute if block ~~~ bamboo)",
                     uR"(give @s apple 12 1)",
+                    uR"(list)",
+                    uR"(/list)",
                     uR"(spreadplayers ~ ~ 0 1200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)",
                     uR"(camerashake add @a 10000000000000000000000000000000000000000000000000000 3402823466385288598117041834845169254401)",
                     uR"(setblock ~~~ candle_cake[lit=)",
                     uR"(give @s repeating_command_block)",
                     uR"(list)",
-                    uR"(/list)"
-            });
+                    uR"(/list)"});
+}
+
+TEST(MainTest, SemanticNodeCount) {
+    std::filesystem::path resourceDir(RESOURCE_DIR);
+    std::shared_ptr<const CHelper::CPack> cPack = CHelper::CPack::createByDirectory(resourceDir / "resources" / "beta" / "vanilla");
+    CHelper::CHelperCore core(cPack);
+
+    const auto expectNodeCount = [&core](const std::u16string &command, size_t expected) {
+        std::unique_ptr<CHelper::CommandContext> context(core.createContext(command));
+        EXPECT_EQ(context->getNodeCount(), expected) << utf8::utf16to8(command);
+    };
+
+    expectNodeCount(u"not_a_command", 0);
+    expectNodeCount(u"/list", 1);
+    expectNodeCount(uR"(tellraw @a {"rawtext":[{"text":"hello"}]})", 3);
+    expectNodeCount(u"tp @a ~ ~ ~ facing @s", 5);
+    expectNodeCount(u"execute as @a as @a as @a as @a as @a as @a as @a run say hi", 18);
+    expectNodeCount(u"execute as @a as @a as @a as @a as @a as @a as @a as @a run list", 19);
 }

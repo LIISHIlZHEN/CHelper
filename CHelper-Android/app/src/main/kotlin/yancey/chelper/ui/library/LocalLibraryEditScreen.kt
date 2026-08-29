@@ -1,6 +1,6 @@
 /**
  * It is part of CHelper. CHelper is a command helper for Minecraft Bedrock Edition.
- * Copyright (C) 2026  Yancey
+ * Copyright (C) 2026  Akanyi
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ package yancey.chelper.ui.library
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,11 +37,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +61,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hjq.toast.Toaster
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -68,6 +74,7 @@ import yancey.chelper.network.library.service.CommandLabUserService
 import yancey.chelper.network.library.util.CloudLibraryCache
 import yancey.chelper.network.library.util.LoginUtil
 import yancey.chelper.ui.common.CHelperTheme
+import yancey.chelper.ui.common.dialog.ChoosingDialog
 import yancey.chelper.ui.common.dialog.IsConfirmDialog
 import yancey.chelper.ui.common.layout.RootViewWithHeaderAndCopyright
 import yancey.chelper.ui.common.layout.SettingsItem
@@ -80,19 +87,68 @@ import java.util.UUID
 
 @SuppressLint("UseKtx")
 @Composable
-fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), id: Int? = null) {
+fun LocalLibraryEditScreen(
+    viewModel: LocalLibraryEditViewModel = viewModel(),
+    localEntryId: String? = null,
+    id: Int? = null
+) {
     val context = LocalContext.current
     val localCommandLabDataStore = remember(context) { LocalCommandLabDataStore(context) }
-    val localLibraryFunction by localCommandLabDataStore.localLibraryFunction(id)
+    val localLibraryFunction by if (localEntryId != null) {
+        localCommandLabDataStore.localLibraryFunction(localEntryId)
+    } else {
+        localCommandLabDataStore.localLibraryFunction(id)
+    }
         .collectAsState(initial = null)
     val onBackPressedDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
-    viewModel.ensureEditingTarget(id, localLibraryFunction)
+    viewModel.ensureEditingTarget(localEntryId, id, localLibraryFunction)
+
+    LaunchedEffect(viewModel.isInitialized, viewModel.draftKey) {
+        if (!viewModel.isInitialized || viewModel.draftRestored) return@LaunchedEffect
+        val draft = localCommandLabDataStore.localLibraryEditDraft(viewModel.draftKey).first()
+        viewModel.restoreDraft(draft)
+        if (draft != null) Toaster.show("已恢复上次编辑草稿")
+    }
+
+    LaunchedEffect(viewModel.draftRestored, viewModel.draftKey) {
+        if (!viewModel.draftRestored) return@LaunchedEffect
+        snapshotFlow { viewModel.snapshot() }
+            .collectLatest { snapshot ->
+                delay(1000)
+                if (!viewModel.draftWritesEnabled) return@collectLatest
+                if (viewModel.isDirty) {
+                    localCommandLabDataStore.saveLocalLibraryEditDraft(
+                        viewModel.draftKey,
+                        viewModel.toDraft(snapshot)
+                    )
+                } else {
+                    localCommandLabDataStore.clearLocalLibraryEditDraft(viewModel.draftKey)
+                }
+            }
+    }
+
+    LaunchedEffect(viewModel.exitApproved) {
+        if (viewModel.exitApproved) onBackPressedDispatcher?.onBackPressed()
+    }
+
+    fun requestExit() {
+        when {
+            viewModel.isSyncing -> Toaster.show("正在同步，请稍候")
+            viewModel.isDirty -> viewModel.isShowExitConfirm = true
+            else -> onBackPressedDispatcher?.onBackPressed()
+        }
+    }
+
+    BackHandler(enabled = !viewModel.exitApproved && (viewModel.isDirty || viewModel.isSyncing)) {
+        requestExit()
+    }
 
     RootViewWithHeaderAndCopyright(
         title = when (viewModel.mode) {
             EditMode.ADD -> stringResource(R.string.layout_library_edit_title_add)
             EditMode.UPDATE -> stringResource(R.string.layout_library_edit_title_edit)
-        }
+        },
+        onBack = ::requestExit
     ) {
         Column(
             modifier = Modifier
@@ -106,7 +162,6 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ---------- 基础信息卡 ----------
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -115,7 +170,7 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "基础信息",
+                        text = "版本信息",
                         style = TextStyle(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -126,13 +181,15 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
                     TextField(
                         state = viewModel.name,
                         hint = stringResource(R.string.upload_field_name),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        lineLimits = TextFieldLineLimits.SingleLine
                     )
                     Spacer(Modifier.height(10.dp))
                     TextField(
                         state = viewModel.description,
                         hint = stringResource(R.string.upload_field_description),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        lineLimits = TextFieldLineLimits.SingleLine
                     )
                     Spacer(Modifier.height(10.dp))
                     Row(
@@ -142,19 +199,20 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
                         TextField(
                             state = viewModel.version,
                             hint = stringResource(R.string.upload_field_version),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            lineLimits = TextFieldLineLimits.SingleLine
                         )
                         TextField(
                             state = viewModel.tags,
                             hint = stringResource(R.string.upload_field_tags),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            lineLimits = TextFieldLineLimits.SingleLine
                         )
                     }
                 }
 
                 Spacer(Modifier.height(16.dp))
 
-                // ---------- 脚本卡 ----------
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -168,16 +226,33 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "执行脚本",
+                            text = "命令区",
                             style = TextStyle(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = CHelperTheme.colors.textMain
                             )
                         )
-                        // V2 才有"低代码补全"。V1 没有命令链/方块状态概念，按钮纯多余
-                        if (viewModel.useV2) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(CHelperTheme.colors.mainColor.copy(alpha = 0.1f))
+                                    .clickable { viewModel.isShowTemplateDialog = true }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "示例模板",
+                                    style = TextStyle(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = CHelperTheme.colors.mainColor
+                                    )
+                                )
+                            }
+                            // V2 才有低代码状态补全。
+                            if (viewModel.useV2) Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
@@ -192,7 +267,7 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    text = "低代码补全 V2",
+                                    text = "标记辅助",
                                     style = TextStyle(
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
@@ -279,11 +354,9 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
 
                 Spacer(Modifier.height(16.dp))
 
-                // ---------- 同步开关 ----------
-                // SettingsItem 跟设置页同款，提示更显眼，明确告诉用户开关代价
                 SettingsItem(
                     name = "自动生成 UUID 并同步",
-                    description = "保存时自动调用云端接口：本地库未绑定云端就建一条草稿（由云端分配 UUID），已绑定的直接更新",
+                    description = "保存时自动生成 UUID，并将本地库同步到云端",
                     checked = viewModel.autoSync,
                     onCheckedChange = { viewModel.autoSync = it }
                 )
@@ -291,29 +364,27 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
                 Spacer(Modifier.height(16.dp))
             }
 
-            // ---------- 底部操作区 ----------
             val saveLabel = when {
                 viewModel.isSyncing -> "同步中…"
                 viewModel.autoSync -> "保存并同步到云端"
                 else -> stringResource(R.string.layout_library_edit_save)
             }
-            // Compose Lint 不让在 onClick 闭包里走 context.getString —— Configuration 变更
-            // 不会触发 LocalContext 重读，会拿到旧值。提前在 Composable 上下文里抓一份字符串
-            val emptyErrorText = stringResource(R.string.upload_empty_error)
+
             Button(
                 text = saveLabel,
                 onClick = {
                     if (viewModel.isSyncing) return@Button
-                    if (viewModel.name.text.isBlank() || viewModel.commands.text.isBlank()) {
-                        Toaster.show(emptyErrorText)
+                    viewModel.validationError()?.let { error ->
+                        Toaster.show(error)
                         return@Button
                     }
                     saveLocalLibrary(
                         viewModel = viewModel,
+                        editingLocalEntryId = localEntryId,
                         editingId = id,
                         existingLibrary = localLibraryFunction,
                         localDataStore = localCommandLabDataStore,
-                        onDone = { onBackPressedDispatcher?.onBackPressed() }
+                        onDone = viewModel::approveExit
                     )
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -333,8 +404,15 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
             content = stringResource(R.string.layout_library_edit_is_confirm_delete),
             onConfirm = {
                 viewModel.viewModelScope.launch {
-                    localCommandLabDataStore.removeLocalLibraryFunction(id!!)
-                    onBackPressedDispatcher?.onBackPressed()
+                    val targetId = localEntryId ?: localLibraryFunction?.localEntryId
+                    if (targetId != null) {
+                        localCommandLabDataStore.removeLocalLibraryFunction(targetId)
+                    } else if (id != null) {
+                        localCommandLabDataStore.removeLocalLibraryFunction(id)
+                    }
+                    localCommandLabDataStore.clearLocalLibraryEditDraft(viewModel.draftKey)
+                    viewModel.markSaved()
+                    viewModel.approveExit()
                 }
             }
         )
@@ -347,7 +425,40 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
             onApply = { newContent ->
                 viewModel.commands.setTextAndPlaceCursorAtEnd(newContent)
                 viewModel.isShowLowCodeHelper = false
-                Toaster.show("已应用标记！")
+                Toaster.show("已应用！")
+            }
+        )
+    }
+
+    if (viewModel.isShowTemplateDialog) {
+        val templates = viewModel.availableTemplates()
+        ChoosingDialog(
+            onDismissRequest = { viewModel.isShowTemplateDialog = false },
+            data = templates.mapIndexed { index, template -> template.label to index.toString() }
+                .plus("关闭" to "close")
+                .toTypedArray(),
+            onChoose = { value ->
+                value.toIntOrNull()?.let { index -> viewModel.applyTemplate(templates[index]) }
+            }
+        )
+    }
+
+    if (viewModel.isShowExitConfirm) {
+        IsConfirmDialog(
+            onDismissRequest = { viewModel.isShowExitConfirm = false },
+            title = "退出编辑？",
+            content = "当前修改尚未保存到本地库，草稿会自动保留，下次进入可继续编辑。",
+            cancelText = "继续编辑",
+            confirmText = "退出",
+            onConfirm = {
+                viewModel.isShowExitConfirm = false
+                viewModel.viewModelScope.launch {
+                    localCommandLabDataStore.saveLocalLibraryEditDraft(
+                        viewModel.draftKey,
+                        viewModel.toDraft()
+                    )
+                    viewModel.approveExit()
+                }
             }
         )
     }
@@ -356,8 +467,8 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
         IsConfirmDialog(
             onDismissRequest = { viewModel.isShowV2DowngradeConfirm = false },
             title = "切换到 V1 语法",
-            content = "V1 语法的渲染效果远低于 V2，不支持命令链可视化和状态标记。确定要降级吗？",
-            confirmText = "确定降级",
+            content = "V1 语法的渲染效果远低于 V2，不支持命令链可视化和状态标记。确定吗？",
+            confirmText = "确定",
             onConfirm = {
                 viewModel.useV2 = false
                 viewModel.isShowV2DowngradeConfirm = false
@@ -368,65 +479,37 @@ fun LocalLibraryEditScreen(viewModel: LocalLibraryEditViewModel = viewModel(), i
 
 /**
  * 保存本地库，可选附加云端同步。
- *
- * 流程：
- * 1. 拼好新的 LibraryFunction（保留 id / uuid / 旧元数据），写本地。
- * 2. autoSync 开 → 进入云端分支：
- *    - 已有云端 id：调 updateLibrary
- *    - 没云端 id：先客户端生成一个 uuid 兜底（防后端"新建走默认 uuid"），
- *      调 uploadLibrary，把返回的 uuid + 没绑过 id 的本地副本重新写一遍。
- * 3. 同步成功清掉 localUnsynced 标记，失败保留 true 让列表看得见。
- *
- * 失败不阻断本地保存——用户写的脚本不会因为网络问题丢。
  */
 private fun saveLocalLibrary(
     viewModel: LocalLibraryEditViewModel,
+    editingLocalEntryId: String?,
     editingId: Int?,
     existingLibrary: LibraryFunction?,
     localDataStore: LocalCommandLabDataStore,
     onDone: () -> Unit
 ) {
     viewModel.viewModelScope.launch {
-        val tagList = viewModel.tags.text.toString()
-            .split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        val newLibrary = LibraryFunction().apply {
-            // 还原属性，避免擦掉云端字段
-            this.id = existingLibrary?.id
-            uuid = existingLibrary?.uuid
-            createdAt = existingLibrary?.createdAt
-            likeCount = existingLibrary?.likeCount
-            isLiked = existingLibrary?.isLiked
-            hasPublicVersion = existingLibrary?.hasPublicVersion
-            isPublish = existingLibrary?.isPublish
-            isOwner = existingLibrary?.isOwner
-            chainData = existingLibrary?.chainData
+        val newLibrary = viewModel.buildLocalLibrary(existingLibrary, editingLocalEntryId)
 
-            name = viewModel.name.text.toString()
-            version = viewModel.version.text.toString()
-            author = existingLibrary?.author
-            note = viewModel.description.text.toString()
-            tags = tagList
-            content = viewModel.commands.text.toString()
-            autoSync = viewModel.autoSync
-            // 已经绑过云端、本地又有新改动 → 标"本地未同步"
-            // 纯本地草稿（没 uuid）保持默认 false
-            localUnsynced = !existingLibrary?.uuid.isNullOrEmpty()
-        }
-
-        // 先写本地，保证用户的脚本一定落盘
-        val savedIndex: Int = when (viewModel.mode) {
+        // 先写本地
+        val savedLocalEntryId: String = when (viewModel.mode) {
             EditMode.ADD -> {
                 localDataStore.addLocalLibraryFunction(newLibrary)
-                // addLocalLibraryFunction 没回 index。按追加约定取末位——拿一次最新快照即可，
-                // 后续 syncToCloud 的回写需要这个 index
-                localDataStore.localLibraryFunctions().first().lastIndex
             }
 
             EditMode.UPDATE -> {
-                localDataStore.updateLocalLibraryFunction(editingId!!, newLibrary)
-                editingId
+                val targetId = editingLocalEntryId ?: existingLibrary?.localEntryId
+                if (targetId != null) {
+                    localDataStore.updateLocalLibraryFunction(targetId, newLibrary)
+                    targetId
+                } else {
+                    localDataStore.updateLocalLibraryFunction(requireNotNull(editingId), newLibrary)
+                    requireNotNull(newLibrary.localEntryId)
+                }
             }
         }
+        viewModel.markSaved()
+        localDataStore.clearLocalLibraryEditDraft(viewModel.draftKey)
 
         if (!viewModel.autoSync) {
             onDone()
@@ -442,15 +525,14 @@ private fun saveLocalLibrary(
 
         viewModel.isSyncing = true
         try {
-            // 给"还没绑定云端"的本地库提前生成一个 uuid，
-            // 这样云端接口里 @uuid 头是稳定的，下次再保存还能命中同一条
+            // 给还没绑的本地库提前生成一个 uuid
             val fallbackUuid = newLibrary.uuid?.takeIf { it.isNotEmpty() }
                 ?: UUID.randomUUID().toString()
             val mcd = viewModel.buildFullMCD(existingLibrary, fallbackUuid)
 
             val syncSucceeded: Boolean = withContext(Dispatchers.IO) {
                 if (newLibrary.id != null) {
-                    // 已绑云端 id：走 update
+                    // 已绑云端 id update
                     val req = CommandLabUserService.UpdateLibraryRequest().apply {
                         this.name = newLibrary.name
                         this.version = newLibrary.version?.ifEmpty { "1.0.0" } ?: "1.0.0"
@@ -462,7 +544,7 @@ private fun saveLocalLibrary(
                         ServiceManager.COMMAND_LAB_USER_SERVICE.updateLibrary(newLibrary.id!!, req)
                     result.isSuccess()
                 } else {
-                    // 没云端 id：调 upload，让后端建一条草稿；后端会回 uuid（理论上和 fallback 一致）
+                    // 没云端 id upload，让后端建一条草稿；后端会回 uuid
                     val req = CommandLabUserService.UploadLibraryRequest().apply {
                         content = mcd
                         isPublish = false
@@ -473,13 +555,11 @@ private fun saveLocalLibrary(
                             ?: fallbackUuid
                         // 把云端分配的 uuid 写回本地。这次不知道云端 id（upload 没返回），
                         // 下次进"我的库" → loadCloudLibraries 回来时会按 uuid 比对补齐
-                        if (savedIndex >= 0) {
-                            val rewrite = newLibrary.apply {
-                                uuid = assignedUuid
-                                localUnsynced = false
-                            }
-                            localDataStore.updateLocalLibraryFunction(savedIndex, rewrite)
-                        }
+                        localDataStore.markLocalLibrarySynced(
+                            localEntryId = savedLocalEntryId,
+                            uuid = assignedUuid,
+                            syncedLibrary = newLibrary
+                        )
                         true
                     } else {
                         false
@@ -489,9 +569,11 @@ private fun saveLocalLibrary(
 
             if (syncSucceeded) {
                 // update 路径：清掉本地未同步标记
-                if (newLibrary.id != null && savedIndex >= 0) {
-                    val cleared = newLibrary.apply { localUnsynced = false }
-                    localDataStore.updateLocalLibraryFunction(savedIndex, cleared)
+                if (newLibrary.id != null) {
+                    localDataStore.markLocalLibrarySynced(
+                        localEntryId = savedLocalEntryId,
+                        syncedLibrary = newLibrary
+                    )
                 }
                 CloudLibraryCache.invalidateLibraries()
                 Toaster.show("已同步到云端")

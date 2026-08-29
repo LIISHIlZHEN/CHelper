@@ -8,3 +8,6 @@ build
 
 # MacOS
 .DS_STORE
+
+# 3rdparty_downloads
+/3rdparty_downloads/

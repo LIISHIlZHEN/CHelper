@@ -18,8 +18,8 @@ android {
         applicationId = "yancey.chelper"
         minSdk = 24
         targetSdk = 37
-        versionCode = 85
-        versionName = "0.4.9"
+        versionCode = 86
+        versionName = "26.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -147,6 +147,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     // https://github.com/coil-kt/coil
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     // https://github.com/Kotlin/kotlinx.serialization
     implementation(libs.kotlinx.serialization.json)
     // https://github.com/square/okhttp

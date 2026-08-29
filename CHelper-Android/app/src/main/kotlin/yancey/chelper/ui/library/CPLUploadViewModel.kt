@@ -67,9 +67,6 @@ class CPLUploadViewModel : ViewModel() {
             val lib = Json.decodeFromString<LibraryFunction>(json)
             this.editUuid = lib.uuid ?: ""
             loadFromLocal(lib)
-            // v2 开关状态回显，若 content 包含 @mcd_version=2
-            useV2 =
-                lib.content?.contains("@mcd_version=2") == true || lib.content?.contains("@mcd_version= 2") == true
         } catch (e: Exception) {
             // 云端草稿格式异常时之前完全静默——用户点编辑没反应还以为没生效。
             // 这里至少 logcat 留底 + 远端上报，便于反查
@@ -79,6 +76,7 @@ class CPLUploadViewModel : ViewModel() {
     }
 
     fun loadFromLocal(library: LibraryFunction) {
+        useV2 = library.usesLocalMcdV2()
         viewModelScope.launch {
             try {
                 name.setTextAndPlaceCursorAtEnd(library.name ?: "")
@@ -86,36 +84,7 @@ class CPLUploadViewModel : ViewModel() {
                 description.setTextAndPlaceCursorAtEnd(library.note ?: "")
                 tags.setTextAndPlaceCursorAtEnd(library.tags?.joinToString(",") ?: "")
 
-                // 剔除已存在的元数据头，只保留命令体
-                val rawContent = library.content ?: ""
-                var body = ""
-                try {
-                    val functionStartIdx = rawContent.indexOf("###Function###")
-                    if (functionStartIdx != -1) {
-                        body = rawContent.substring(functionStartIdx + "###Function###".length)
-                            .trimStart('\n', '\r')
-                        val functionEndIdx = body.indexOf("###End###")
-                        if (functionEndIdx != -1) {
-                            body = body.substring(0, functionEndIdx).trimEnd('\n', '\r')
-                        }
-                    } else {
-                        body = rawContent
-                    }
-                } catch (e: Exception) {
-                    // 元数据头剥离失败时回退用整段原始内容，仍然继续。
-                    // 不阻断流程，但要把异常上报，否则就是"看似正常但 body 没剥干净"
-                    Log.w("CPLUploadViewModel", "元数据头剥离失败，回退原始内容", e)
-                    MonitorUtil.generateCustomLog(e, "MCDStripHeaderError")
-                    body = rawContent
-                }
-
-                val cleanLines = body.lines().filter { line ->
-                    val t = line.trim()
-                    !(t.startsWith("@name=") || t.startsWith("@version=") ||
-                            t.startsWith("@tags=") || t.startsWith("@note=") ||
-                            t.startsWith("@mcd_version=") || t.startsWith("@uuid="))
-                }
-                commands.setTextAndPlaceCursorAtEnd(cleanLines.joinToString("\n").trim())
+                commands.setTextAndPlaceCursorAtEnd(library.localBody().trim('\n', '\r'))
             } catch (e: Exception) {
                 Log.e("CPLUploadViewModel", "加载本地内容失败", e)
                 MonitorUtil.generateCustomLog(e, "LoadLocalLibraryError")
@@ -138,7 +107,11 @@ class CPLUploadViewModel : ViewModel() {
             mcdBuilder.append("@tags=${tagList.joinToString(",")}\n")
         }
 
-        mcdBuilder.append("@note=${description.text}\n")
+        val mcdNote = description.text.toString()
+            .replace("\r\n", " ")
+            .replace('\r', ' ')
+            .replace('\n', ' ')
+        mcdBuilder.append("@note=$mcdNote\n")
         if (useV2) {
             mcdBuilder.append("@mcd_version=2\n")
         }

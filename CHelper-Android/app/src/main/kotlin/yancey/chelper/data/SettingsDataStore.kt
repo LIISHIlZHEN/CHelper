@@ -72,6 +72,8 @@ data class Settings(
     val syntaxHighlightMaxLength: Int? = null,
     val publicLibraryHomeRecommend: Boolean? = null,
     val isEnableMcdHighlight: Boolean? = null,
+    val isEnableLoongFlowImportMiniIcon: Boolean? = null,
+    val hasShownCommandEditorHint: Boolean? = null,
 )
 
 object SettingsSerializer : Serializer<Settings> {
@@ -101,6 +103,12 @@ object SettingsSerializer : Serializer<Settings> {
 
 class SettingsDataStore(private val context: Context) {
 
+    /**
+     * 预热进程级共享的 DataStore，把设置文件读进内存缓存。
+     * 必须在 Application.onCreate 中、任何 UI 创建前调用一次。
+     * 之后 BaseComposeActivity / 悬浮窗的 [themeIdBlocking] 才能在主线程上
+     * 几乎零开销地同步读取主题，避免冷读磁盘导致启动卡顿与首帧主题错误。
+     */
     fun init() {
         runBlocking { context.settingsDataStore.data.first() }
     }
@@ -110,6 +118,13 @@ class SettingsDataStore(private val context: Context) {
 
     fun themeId(): Flow<String> =
         context.settingsDataStore.data.map { it.themeId ?: "MODE_NIGHT_FOLLOW_SYSTEM" }
+
+    /**
+     * 同步读取主题设置。
+     * Application.onCreate 已经通过 init() 预热过 DataStore，这里只会命中内存缓存，
+     * 供 Activity / 悬浮窗在首帧渲染前确定主题，避免启动时先渲染亮色再动画切换到夜间。
+     */
+    fun themeIdBlocking(): String = runBlocking { themeId().first() }
 
     fun floatingWindowIconAlpha(): Flow<Float> =
         context.settingsDataStore.data.map { it.floatingWindowAlpha ?: 1.0f }
@@ -250,6 +265,26 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setIsEnableMcdHighlight(value: Boolean) {
         context.settingsDataStore.updateData { it.copy(isEnableMcdHighlight = value) }
+    }
+
+    fun isEnableLoongFlowImportMiniIcon(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it.isEnableLoongFlowImportMiniIcon ?: true }
+
+    suspend fun setIsEnableLoongFlowImportMiniIcon(value: Boolean) {
+        context.settingsDataStore.updateData { it.copy(isEnableLoongFlowImportMiniIcon = value) }
+    }
+
+    suspend fun claimCommandEditorHint(): Boolean {
+        var claimed = false
+        context.settingsDataStore.updateData {
+            if (it.hasShownCommandEditorHint == true) {
+                it
+            } else {
+                claimed = true
+                it.copy(hasShownCommandEditorHint = true)
+            }
+        }
+        return claimed
     }
 }
 

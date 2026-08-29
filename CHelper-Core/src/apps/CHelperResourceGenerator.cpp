@@ -196,19 +196,19 @@ namespace CHelper::Test {
                         startSuggestions, endSuggestions,
                         startStructure, endStructure;
                 startParse = std::chrono::high_resolution_clock::now();
-                core->onTextChanged(command, command.length());
+                std::unique_ptr<CommandContext> context(core->createContext(command));
                 endParse = std::chrono::high_resolution_clock::now();
                 startDescription = std::chrono::high_resolution_clock::now();
-                auto description = core->getParamHint();
+                auto description = context->getParamHint(command.length());
                 endDescription = std::chrono::high_resolution_clock::now();
                 startErrorReasons = std::chrono::high_resolution_clock::now();
-                auto errorReasons = core->getErrorReasons();
+                auto errorReasons = context->getErrorReasons();
                 endErrorReasons = std::chrono::high_resolution_clock::now();
                 startSuggestions = std::chrono::high_resolution_clock::now();
-                auto suggestions = core->getSuggestions();
+                auto suggestions = context->getSuggestions(command.length());
                 endSuggestions = std::chrono::high_resolution_clock::now();
                 startStructure = std::chrono::high_resolution_clock::now();
-                auto structure = core->getStructure();
+                auto structure = context->getStructure();
                 endStructure = std::chrono::high_resolution_clock::now();
                 fmt::println("parse: {}", FORMAT_ARG(utf8::utf16to8(command)));
                 if (isTestTime) {
@@ -235,12 +235,12 @@ namespace CHelper::Test {
                                    utf8::utf16to8(command.substr((errorReason->end))));
                     }
                 }
-                if (suggestions->empty()) {
+                if (suggestions.empty()) {
                     fmt::println("no suggestion");
                 } else {
-                    fmt::println("{} suggestions:", suggestions->size());
-                    for (size_t i = 0; i < suggestions->size(); ++i) {
-                        const auto &item = (*suggestions)[i];
+                    fmt::println("{} suggestions:", suggestions.size());
+                    for (size_t i = 0; i < suggestions.size(); ++i) {
+                        const auto &item = suggestions[i];
                         if (i == 30) {
                             fmt::println("...");
                             break;
@@ -287,11 +287,11 @@ namespace CHelper::Test {
             start = std::chrono::high_resolution_clock::now();
             for (size_t i = 0; i < times; ++i) {
                 for (const auto &command: commands) {
-                    core->onTextChanged(command, command.length());
-                    auto description = core->getParamHint();// NOLINT(*-unused-local-non-trivial-variable)
-                    auto errorReasons = core->getErrorReasons();
-                    core->getSuggestions();
-                    auto structure = core->getStructure();// NOLINT(*-unused-local-non-trivial-variable)
+                    std::unique_ptr<CommandContext> context(core->createContext(command));
+                    auto description = context->getParamHint(command.length());// NOLINT(*-unused-local-non-trivial-variable)
+                    auto errorReasons = context->getErrorReasons();
+                    context->getSuggestions(command.length());
+                    auto structure = context->getStructure();// NOLINT(*-unused-local-non-trivial-variable)
                 }
             }
             end = std::chrono::high_resolution_clock::now();

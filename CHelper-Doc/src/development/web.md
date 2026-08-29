@@ -24,44 +24,54 @@ export class CHelperCore {
     // 释放内存
   }
 
-  onTextChanged(content, index) {
-    // 文本改变事件
+  createContext(command) {
+    // 把命令文本解析成AST，生成独立的命令上下文
+  }
+}
+
+export class CommandContext {
+  release() {
+    // 释放内存
   }
 
-  onSelectionChanged(index) {
-    // 光标位置改变事件
+  getCommand() {
+    // 获取这个上下文对应的命令文本
   }
 
   getStructure() {
     // 获取命令结构
   }
 
-  getParamHint() {
-    // 获取参数注释
+  getParamHint(index) {
+    // 获取指定位置的参数注释
   }
 
   getErrorReasons() {
     // 获取错误原因
   }
 
-  getSuggestionSize() {
-    // 获取补全提示数量
+  getSuggestionSize(index) {
+    // 获取指定位置的补全提示数量
   }
 
-  getSuggestion(which) {
-    // 获取其中一个补全提示
+  getSuggestion(index, which) {
+    // 获取指定位置的其中一个补全提示
   }
 
-  getAllSuggestions() {
-    // 获取所有补全提示
+  getAllSuggestions(index) {
+    // 获取指定位置的所有补全提示
   }
 
-  onSuggestionClick(which) {
-    // 补全提示使用事件
+  applySuggestion(index, which) {
+    // 把指定位置的其中一个补全提示应用到命令文本，不修改自身状态
   }
 
   getSyntaxTokens() {
     // 获取每个字符的token类型，用于语法高亮
+  }
+
+  getNodeCount() {
+    // 获取最佳解析路径中已经匹配的命令语义节点数量
   }
 }
 ```
@@ -85,3 +95,17 @@ export async function getCore(branch) {
 ```
 
 获取到内核后，即可去调用内核的各种接口了。需要注意的是，在内核要被销毁的时候，记得调用`release()`函数释放内存。
+
+内核本身不保存任何文本和光标状态，所有的命令相关功能都在`CommandContext`上执行。通过`createContext(command)`把命令文本解析成AST生成独立的命令上下文，然后在没有可变状态的`CommandContext`上执行各种只读操作：
+
+```js
+const core = await getCore(DEFAULT_BRANCH);
+const context = core.createContext('give @s stone 12 1');
+console.log(context.getStructure());
+console.log(context.getParamHint(8));
+console.log(context.getAllSuggestions(context.getCommand().length));
+console.log(context.getSyntaxTokens());
+context.release();
+```
+
+由于`CommandContext`没有可变状态，同一条命令解析一次后，可以被多个线程同时读取；也可以基于同一个内核为多条命令创建多个`CommandContext`并行工作。对于编辑器场景，文本内容改变时重新`createContext`，光标改变时直接用新的位置查询即可。

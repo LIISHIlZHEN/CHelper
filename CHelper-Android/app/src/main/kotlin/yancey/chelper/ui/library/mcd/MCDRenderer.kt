@@ -30,33 +30,61 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import yancey.chelper.core.CHelperCore
-import yancey.chelper.core.Theme
-import yancey.chelper.data.SettingsDataStore
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.withContext
 import yancey.chelper.R
 import yancey.chelper.android.util.MonitorUtil
+import yancey.chelper.core.CHelperCore
+import yancey.chelper.core.Theme
+import yancey.chelper.data.SettingsDataStore
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.widget.Icon
 import yancey.chelper.ui.common.widget.Text
+
+/** 首屏先组合这么多行，尽快出 UI */
+private const val MCD_INITIAL_VISIBLE_ITEMS = 40
+
+/** 后续每帧/每批自动往容器追加这么多行（体验上像原来一次全出来，但不卡死） */
+private const val MCD_APPEND_BATCH_SIZE = 24
+
+/** 两批追加之间让出主线程，避免 measure/layout 连着炸 */
+private const val MCD_APPEND_FRAME_DELAY_MS = 16L
+
+/** 单次打开最多高亮这么多条命令；再多只显示纯文本，防 native 长时间占锁 / OOM */
+private const val MCD_HIGHLIGHT_MAX_COMMANDS = 64
+
+/** 单条命令超过这个长度就跳过高亮（超长 execute/json 很容易把 C++ 解析拖死） */
+private const val MCD_HIGHLIGHT_MAX_CMD_LEN = 2_500
+
+/** 分批高亮时每处理多少条 yield 一次，让 UI 线程喘口气 */
+private const val MCD_HIGHLIGHT_YIELD_EVERY = 8
+
+private val mcdVersion2LineRegex = Regex(
+    """^@mcd_version\s*=\s*2$""",
+    RegexOption.IGNORE_CASE
+)
 
 // 数据模型
 
@@ -109,6 +137,10 @@ data class ParsedMCD(
 
 // 解析器
 
+/**
+ * 只做文本结构解析，不做语法高亮。
+ * 超长库的高亮应走 [applyMcdHighlightAsync]，避免打开详情页时长时间阻塞。
+ */
 fun parseMCD(
     content: String?,
     ambiguousDefault: String = "comment",
@@ -116,17 +148,43 @@ fun parseMCD(
     cpackBranch: String? = null,
     isEnableMcdHighlight: Boolean = false
 ): ParsedMCD {
+    val parsed = parseMCDStructure(content, ambiguousDefault)
+    if (isEnableMcdHighlight && context != null && !cpackBranch.isNullOrEmpty()) {
+        applyMcdHighlightSync(parsed, context, cpackBranch)
+    }
+    return parsed
+}
+
+/** 纯结构解析：行扫一遍，不碰 CHelperCore */
+fun parseMCDStructure(
+    content: String?,
+    ambiguousDefault: String = "comment"
+): ParsedMCD {
     if (content.isNullOrBlank()) return ParsedMCD()
 
     return try {
-        val lines = content.split(Regex("\\r?\n"))
         val metaInfo = mutableListOf<MCDMeta>()
         val rootComments = mutableListOf<String>()
         val chains = mutableListOf<MCDChain>()
         var currentChain: MCDChain? = null
+        val functionMarkerIndex = content.lineSequence()
+            .indexOfFirst { it.trim() == "###Function###" }
 
-        // 确认是否是 v2
-        val isV2 = lines.any { it.trim().startsWith("@mcd_version=2") }
+        val isV2 = if (functionMarkerIndex >= 0) {
+            content.lineSequence().take(functionMarkerIndex)
+                .any { mcdVersion2LineRegex.matches(it.trim()) }
+        } else {
+            var detected = false
+            for (line in content.lineSequence()) {
+                val t = line.trim()
+                if (mcdVersion2LineRegex.matches(t)) {
+                    detected = true
+                    break
+                }
+                if (t.isNotEmpty() && !t.startsWith("@") && !t.startsWith("###")) break
+            }
+            detected
+        }
 
         var pendingBlockType = BlockType.CHAIN
         var pendingConditional = false
@@ -134,17 +192,54 @@ fun parseMCD(
         var pendingNeedsRedstone = false
         var pendingTickDelay = 0
         var hasPendingState = false
+        var lastHeaderMetaIndex: Int? = null
 
-        for (line in lines) {
+        for ((lineIndex, line) in content.lineSequence().withIndex()) {
             val tline = line.trim()
+
+            if (functionMarkerIndex >= 0 && lineIndex < functionMarkerIndex) {
+                when {
+                    tline.isEmpty() -> lastHeaderMetaIndex = null
+                    tline.startsWith("@") -> {
+                        val splitIdx = tline.indexOf('=')
+                        if (splitIdx > 0) {
+                            metaInfo.add(
+                                MCDMeta(
+                                    key = tline.substring(1, splitIdx).trim(),
+                                    value = tline.substring(splitIdx + 1).trim()
+                                )
+                            )
+                            lastHeaderMetaIndex = metaInfo.lastIndex
+                        }
+                    }
+                    tline.startsWith("#") -> {
+                        rootComments.add(tline.substring(1).trim())
+                        lastHeaderMetaIndex = null
+                    }
+                    tline.startsWith("//") -> lastHeaderMetaIndex = null
+                    else -> {
+                        val metaIndex = lastHeaderMetaIndex
+                        if (metaIndex != null && metaInfo[metaIndex].key.equals("note", ignoreCase = true)) {
+                            val note = metaInfo[metaIndex]
+                            metaInfo[metaIndex] = note.copy(value = "${note.value}\n$tline")
+                        } else {
+                            rootComments.add(tline)
+                        }
+                    }
+                }
+                continue
+            }
+
             if (tline.isEmpty()) continue
+
+            if (lineIndex == functionMarkerIndex) continue
+            if (tline == "###End###") break
 
             // 杂项标记 ###Function### / ###End###
             if (tline.startsWith("###") && tline.endsWith("###")) continue
 
             // 若当前等待的是 CHAT 状态，则无论下面是什么前缀，都当成指令文本
             if (isV2 && hasPendingState && pendingBlockType == BlockType.CHAT) {
-                // 确保有容纳容器
                 if (currentChain == null) {
                     currentChain = MCDChain(name = "分离的指令")
                     chains.add(currentChain)
@@ -206,7 +301,6 @@ fun parseMCD(
                 val match = stateRegex.matchEntire(tline)
                 if (match != null) {
                     val rawType = (match.groupValues[1].ifEmpty { "C" }).uppercase()
-                    // _ 占位符视为缺省值 C
                     val effectiveType = if (rawType == "_") "C" else rawType
                     pendingBlockType = when (effectiveType) {
                         "I" -> BlockType.IMPULSE
@@ -224,8 +318,8 @@ fun parseMCD(
                         val cond = match.groupValues[2]
                         val rs = match.groupValues[3]
                         val tick = match.groupValues[4]
-                        pendingConditional = cond == "?"          // _ 或空都是无条件
-                        pendingAlwaysActive = rs != "!"           // 只有显式 ! 才需要红石
+                        pendingConditional = cond == "?"
+                        pendingAlwaysActive = rs != "!"
                         pendingNeedsRedstone = rs == "!"
                         pendingTickDelay =
                             if (tick.isNotEmpty() && tick != "_") tick.toIntOrNull() ?: 0 else 0
@@ -241,13 +335,11 @@ fun parseMCD(
                 continue
             }
 
-            // 确保有容纳容器
             if (currentChain == null) {
                 currentChain = MCDChain(name = "分离的指令")
                 chains.add(currentChain)
             }
 
-            // 正式的命令指令
             if (isV2) {
                 val block = if (hasPendingState) {
                     MCDBlock(
@@ -264,12 +356,10 @@ fun parseMCD(
                 currentChain.items.add(ChainItem.Block(block))
                 hasPendingState = false
             } else {
-                // v1: 行首是英文字母或斜杠才视为指令
                 val firstChar = tline.firstOrNull()
                 if (firstChar != null && (firstChar.isLetter() && firstChar.code < 128 || firstChar == '/')) {
                     currentChain.items.add(ChainItem.RawCommand(tline))
                 } else {
-                    // 无法推断的行：根据用户设置决定 fallback
                     if (ambiguousDefault == "command") {
                         currentChain.items.add(ChainItem.RawCommand(tline))
                     } else {
@@ -279,55 +369,13 @@ fun parseMCD(
             }
         }
 
-        val parsed = ParsedMCD(
+        ParsedMCD(
             metaInfo = metaInfo,
             rootComments = rootComments,
             chains = chains,
             isV2 = isV2
         )
-        if (isEnableMcdHighlight && context != null && !cpackBranch.isNullOrEmpty()) {
-            try {
-                var cpackPath: String? = null
-                val cpackList = context.assets.list("cpack")
-                if (cpackList != null) {
-                    for (filename in cpackList) {
-                        if (filename.startsWith(cpackBranch)) {
-                            cpackPath = "cpack/$filename"
-                            break
-                        }
-                    }
-                }
-                if (cpackPath != null) {
-                    synchronized(MCDHighlightCoreCache) {
-                        val core = MCDHighlightCoreCache.get(context, cpackPath)
-                        if (core != null) {
-                            chains.forEach { chain ->
-                                chain.items.forEach { item ->
-                                    when (item) {
-                                        is ChainItem.Block -> {
-                                            core.onTextChanged(item.block.command, 0)
-                                            item.block.syntaxHighlightTokens = core.syntaxToken
-                                        }
-                                        is ChainItem.RawCommand -> {
-                                            core.onTextChanged(item.command, 0)
-                                            item.syntaxHighlightTokens = core.syntaxToken
-                                        }
-                                        else -> {}
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("MCDRenderer", "Failed to highlight MCD blocks", e)
-            }
-        }
-        parsed
     } catch (e: Exception) {
-        // 之前是 e.printStackTrace()，release 版 logcat 看不到也没上报，
-        // 这里改成完整 Log.e + Umeng 上报，避免"解析悄悄炸"成为线上盲区。
-        // 仍然返回错误占位结构而不是抛出，以保住界面不至于整体 measure 阶段崩。
         Log.e("MCDRenderer", "MCD 解析失败", e)
         MonitorUtil.generateCustomLog(e, "MCDParseError")
         ParsedMCD(
@@ -337,6 +385,162 @@ fun parseMCD(
             isV2 = false
         )
     }
+}
+
+private fun resolveCpackPath(context: Context, cpackBranch: String): String? {
+    val cpackList = context.assets.list("cpack") ?: return null
+    for (filename in cpackList) {
+        if (filename.startsWith(cpackBranch)) {
+            return "cpack/$filename"
+        }
+    }
+    return null
+}
+
+/**
+ * 同步高亮（兼容旧调用方如逐行复制）。
+ * 有条数/长度上限，超长库不会把整库都丢进 native。
+ */
+private fun applyMcdHighlightSync(
+    parsed: ParsedMCD,
+    context: Context,
+    cpackBranch: String
+) {
+    try {
+        val cpackPath = resolveCpackPath(context, cpackBranch) ?: return
+        var highlighted = 0
+        synchronized(MCDHighlightCoreCache) {
+            val core = MCDHighlightCoreCache.get(context, cpackPath) ?: return
+            outer@ for (chain in parsed.chains) {
+                for (item in chain.items) {
+                    if (highlighted >= MCD_HIGHLIGHT_MAX_COMMANDS) break@outer
+                    when (item) {
+                        is ChainItem.Block -> {
+                            val cmd = item.block.command
+                            if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) continue
+                            core.createContext(cmd).use { item.block.syntaxHighlightTokens = it.syntaxToken }
+                            highlighted++
+                        }
+                        is ChainItem.RawCommand -> {
+                            val cmd = item.command
+                            if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) continue
+                            core.createContext(cmd).use { item.syntaxHighlightTokens = it.syntaxToken }
+                            highlighted++
+                        }
+                        else -> {}
+                    }
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("MCDRenderer", "Failed to highlight MCD blocks", e)
+    }
+}
+
+/**
+ * 分批高亮：先让结构 UI 出来，再在后台一点点填 token。
+ * 每批 yield，并可选回调 [onBatchDone]，方便 UI 边高亮边刷新首屏颜色。
+ * @return 实际完成高亮的命令条数
+ */
+suspend fun applyMcdHighlightAsync(
+    parsed: ParsedMCD,
+    context: Context,
+    cpackBranch: String,
+    onBatchDone: (suspend (highlightedSoFar: Int) -> Unit)? = null
+): Int = applyMcdHighlightItemsAsync(
+    items = parsed.chains.flatMap { it.items },
+    context = context,
+    cpackBranch = cpackBranch,
+    onBatchDone = onBatchDone
+)
+
+/**
+ * 对当前已显示的一批命令做高亮。
+ * 每次调用仍受 [MCD_HIGHLIGHT_MAX_COMMANDS] 保护；渲染器按延迟追加批次调用，
+ * 这样首屏后的命令也能高亮，而不会把整库一次压进 native 高亮器。
+ */
+private suspend fun applyMcdHighlightItemsAsync(
+    items: List<ChainItem>,
+    context: Context,
+    cpackBranch: String,
+    onBatchDone: (suspend (highlightedSoFar: Int) -> Unit)? = null
+): Int = withContext(Dispatchers.Default) {
+    try {
+        val cpackPath = resolveCpackPath(context, cpackBranch) ?: return@withContext 0
+        var highlighted = 0
+        var sinceYield = 0
+        for (item in items) {
+            if (highlighted >= MCD_HIGHLIGHT_MAX_COMMANDS) break
+            val applied = synchronized(MCDHighlightCoreCache) {
+                val core = MCDHighlightCoreCache.get(context, cpackPath) ?: return@synchronized false
+                when (item) {
+                    is ChainItem.Block -> {
+                        val cmd = item.block.command
+                        if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) return@synchronized false
+                        core.createContext(cmd).use { item.block.syntaxHighlightTokens = it.syntaxToken }
+                        true
+                    }
+                    is ChainItem.RawCommand -> {
+                        val cmd = item.command
+                        if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) return@synchronized false
+                        core.createContext(cmd).use { item.syntaxHighlightTokens = it.syntaxToken }
+                        true
+                    }
+                    else -> false
+                }
+            }
+            if (applied) {
+                highlighted++
+                sinceYield++
+                if (sinceYield >= MCD_HIGHLIGHT_YIELD_EVERY) {
+                    sinceYield = 0
+                    onBatchDone?.invoke(highlighted)
+                    yield()
+                }
+            }
+        }
+        if (highlighted > 0) {
+            onBatchDone?.invoke(highlighted)
+        }
+        highlighted
+    } catch (e: Exception) {
+        Log.e("MCDRenderer", "Failed to highlight MCD blocks async", e)
+        0
+    }
+}
+
+/** 展平为可分页渲染的行，方便「先显示前 N 条」而不用 LazyColumn */
+private sealed class MCDRenderRow {
+    data class Meta(val items: List<MCDMeta>) : MCDRenderRow()
+    data class RootComment(val text: String) : MCDRenderRow()
+    data class Header(val name: String) : MCDRenderRow()
+    data class Item(val item: ChainItem) : MCDRenderRow()
+    data object ChainGap : MCDRenderRow()
+}
+
+private fun flattenParsedMCD(parsed: ParsedMCD, showMetadata: Boolean): List<MCDRenderRow> {
+    val rows = ArrayList<MCDRenderRow>(
+        parsed.rootComments.size +
+            parsed.chains.sumOf { it.items.size + 2 } +
+            if (showMetadata && parsed.metaInfo.isNotEmpty()) 1 else 0
+    )
+    if (showMetadata && parsed.metaInfo.isNotEmpty()) {
+        rows.add(MCDRenderRow.Meta(parsed.metaInfo))
+    }
+    for (comment in parsed.rootComments) {
+        rows.add(MCDRenderRow.RootComment(comment))
+    }
+    for (chain in parsed.chains) {
+        val shouldShowHeader = chain.name != "分离的指令" && chain.name != "默认主链"
+        if (shouldShowHeader) {
+            rows.add(MCDRenderRow.Header(chain.name))
+        }
+        for (item in chain.items) {
+            rows.add(MCDRenderRow.Item(item))
+        }
+        rows.add(MCDRenderRow.ChainGap)
+    }
+    return rows
 }
 
 // Compose 渲染
@@ -359,16 +563,11 @@ fun MCDContentView(
     val cpackBranch by settingsDataStore.cpackBranch().collectAsState(initial = "release-experiment")
     val isEnableMcdHighlight by settingsDataStore.isEnableMcdHighlight().collectAsState(initial = true)
 
-    val parsed by produceState<ParsedMCD?>(initialValue = null, content, ambiguousDefault, cpackBranch, isEnableMcdHighlight) {
+    // 1) 只做结构解析，尽快让 UI 出来
+    val parsed by produceState<ParsedMCD?>(initialValue = null, content, ambiguousDefault) {
         value = null
         value = withContext(Dispatchers.Default) {
-            parseMCD(
-                content = content,
-                ambiguousDefault = ambiguousDefault,
-                context = context,
-                cpackBranch = cpackBranch,
-                isEnableMcdHighlight = isEnableMcdHighlight
-            )
+            parseMCDStructure(content = content, ambiguousDefault = ambiguousDefault)
         }
     }
 
@@ -393,40 +592,89 @@ fun MCDContentView(
     }
     val parsedData = parsed ?: return
 
-    // 不用 LazyColumn——调用方常把本组件嵌进 verticalScroll 容器（例如 MCDPreviewScreen），
-    // LazyColumn 在无限高度约束下会直接抛 IllegalStateException 让进入预览时闪退。
-    // 单条命令库的 chain/item 数量都在百级以内，普通 Column 性能完全够用。
-    // 调用方需要滚动时自己用 verticalScroll 包一层即可。
-    Column(modifier = modifier) {
-        // 元数据区（可通过设置隐藏）
-        if (showMetadata && parsedData.metaInfo.isNotEmpty()) {
-            MetaSection(parsedData.metaInfo)
-            Spacer(Modifier.height(8.dp))
+    // 不用 LazyColumn（超长容易炸）。
+    // 首屏先出 N 行，随后自动分批往 Column 追加，滚动体验与原来一致。
+    val allRows = remember(parsedData, showMetadata) {
+        flattenParsedMCD(parsedData, showMetadata)
+    }
+    var visibleCount by remember(content, ambiguousDefault, showMetadata) {
+        mutableIntStateOf(minOf(MCD_INITIAL_VISIBLE_ITEMS, allRows.size))
+    }
+    LaunchedEffect(allRows) {
+        // 结构一变：立刻出首屏，再按帧追加剩余行
+        visibleCount = minOf(MCD_INITIAL_VISIBLE_ITEMS, allRows.size)
+        while (visibleCount < allRows.size) {
+            delay(MCD_APPEND_FRAME_DELAY_MS)
+            visibleCount = minOf(visibleCount + MCD_APPEND_BATCH_SIZE, allRows.size)
         }
+    }
 
-        // 链前游离注释
-        parsedData.rootComments.forEach { comment ->
-            CommentItem(comment)
-            Spacer(Modifier.height(4.dp))
-        }
-
-        // 命令链
-        parsedData.chains.forEach { chain ->
-            val shouldShowHeader = chain.name != "分离的指令" && chain.name != "默认主链"
-            if (shouldShowHeader) {
-                ChainHeader(chain.name)
+    // 结构先出 UI；之后每批延迟显示的行单独进入高亮队列。
+    // 不能只高亮整库的前 64 条，否则首屏后的延迟条目永远没有 token。
+    var highlightRevision by remember(content, ambiguousDefault, showMetadata) { mutableIntStateOf(0) }
+    LaunchedEffect(allRows, cpackBranch, isEnableMcdHighlight) {
+        if (!isEnableMcdHighlight || cpackBranch.isNullOrEmpty()) return@LaunchedEffect
+        var processedRowCount = 0
+        while (processedRowCount < allRows.size) {
+            val targetCount = visibleCount.coerceIn(processedRowCount, allRows.size)
+            if (targetCount == processedRowCount) {
+                delay(MCD_APPEND_FRAME_DELAY_MS)
+                continue
             }
 
-            chain.items.forEach { item ->
-                when (item) {
-                    is ChainItem.Comment -> CommentItem(item.text)
-                    is ChainItem.RawCommand -> RawCommandItem(item.command, item.syntaxHighlightTokens)
-                    is ChainItem.Block -> BlockItem(item.block)
+            // 即使 visibleCount 快速跳变，也严格按渲染批大小追赶，不能跨过未高亮条目。
+            val batchEnd = minOf(
+                processedRowCount + MCD_APPEND_BATCH_SIZE,
+                targetCount
+            )
+            val delayedItems = allRows.subList(processedRowCount, batchEnd)
+                .mapNotNull { row -> (row as? MCDRenderRow.Item)?.item }
+            processedRowCount = batchEnd
+            if (delayedItems.isNotEmpty()) {
+                applyMcdHighlightItemsAsync(delayedItems, context, cpackBranch) {
+                    // 切回主线程再改 state，保证已显示行立即重组。
+                    withContext(Dispatchers.Main.immediate) {
+                        highlightRevision++
+                    }
                 }
-                Spacer(Modifier.height(4.dp))
             }
+            yield()
+        }
+    }
+    val visibleRows = remember(allRows, visibleCount) {
+        allRows.take(visibleCount.coerceIn(0, allRows.size))
+    }
 
-            Spacer(Modifier.height(12.dp))
+    Column(modifier = modifier) {
+        visibleRows.forEach { row ->
+            when (row) {
+                is MCDRenderRow.Meta -> {
+                    MetaSection(row.items)
+                    Spacer(Modifier.height(8.dp))
+                }
+                is MCDRenderRow.RootComment -> {
+                    CommentItem(row.text)
+                    Spacer(Modifier.height(4.dp))
+                }
+                is MCDRenderRow.Header -> {
+                    ChainHeader(row.name)
+                }
+                is MCDRenderRow.Item -> {
+                    when (val item = row.item) {
+                        is ChainItem.Comment -> CommentItem(item.text)
+                        is ChainItem.RawCommand -> RawCommandItem(
+                            item.command,
+                            item.syntaxHighlightTokens,
+                            highlightRevision
+                        )
+                        is ChainItem.Block -> BlockItem(item.block, highlightRevision)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+                is MCDRenderRow.ChainGap -> {
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
         }
     }
 }
@@ -519,10 +767,10 @@ private fun ChainHeader(name: String) {
 }
 
 @Composable
-private fun RawCommandItem(command: String, tokens: IntArray?) {
+private fun RawCommandItem(command: String, tokens: IntArray?, highlightRevision: Int) {
     val context = LocalContext.current
     val isDark = CHelperTheme.theme == CHelperTheme.Theme.Dark
-    val highlightedText = remember(command, tokens, isDark) {
+    val highlightedText = remember(command, tokens, isDark, highlightRevision) {
         highlightCommand(command, tokens, isDark)
     }
     Row(
@@ -556,7 +804,7 @@ private fun RawCommandItem(command: String, tokens: IntArray?) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BlockItem(block: MCDBlock) {
+private fun BlockItem(block: MCDBlock, highlightRevision: Int) {
     val context = LocalContext.current
     val blockColor = if (CHelperTheme.theme == CHelperTheme.Theme.Dark) {
         block.type.darkColor
@@ -602,7 +850,12 @@ private fun BlockItem(block: MCDBlock) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             val isDark = CHelperTheme.theme == CHelperTheme.Theme.Dark
-            val highlightedText = remember(block.command, block.syntaxHighlightTokens, isDark) {
+            val highlightedText = remember(
+                block.command,
+                block.syntaxHighlightTokens,
+                isDark,
+                highlightRevision
+            ) {
                 highlightCommand(block.command, block.syntaxHighlightTokens, isDark)
             }
             Text(

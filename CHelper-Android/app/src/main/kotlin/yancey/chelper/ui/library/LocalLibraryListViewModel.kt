@@ -1,6 +1,6 @@
 /**
  * It is part of CHelper. CHelper is a command helper for Minecraft Bedrock Edition.
- * Copyright (C) 2026  Yancey
+ * Copyright (C) 2026  Akanyi
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,6 +42,7 @@ class LocalLibraryListViewModel : ViewModel() {
     var keyword by mutableStateOf(TextFieldState())
     var isShowImportDialog by mutableStateOf(false)
     var isShowExportDialog by mutableStateOf(false)
+    var localSort by mutableStateOf(LocalLibrarySort.DEFAULT)
 
     var isLoggedIn by mutableStateOf(false)
     var currentUser by mutableStateOf<CommandLabUserService.User?>(null)
@@ -58,7 +59,7 @@ class LocalLibraryListViewModel : ViewModel() {
     var cloudLibrariesPage by mutableIntStateOf(1)
     var cloudLibrariesHasMore by mutableStateOf(true)
 
-    var uploadingLibraryIndex by mutableIntStateOf(-1)
+    var uploadingLocalEntryId by mutableStateOf<String?>(null)
 
     init {
         refreshUserState()
@@ -207,14 +208,14 @@ class LocalLibraryListViewModel : ViewModel() {
 
     fun uploadToCloud(
         library: LibraryFunction,
-        localIndex: Int,
+        localEntryId: String,
         localDataStore: LocalCommandLabDataStore? = null
     ) {
         if (!isLoggedIn) {
             Toaster.show("请先登录")
             return
         }
-        uploadingLibraryIndex = localIndex
+        uploadingLocalEntryId = localEntryId
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val mcdContent = buildFullMCD(library)
@@ -224,19 +225,19 @@ class LocalLibraryListViewModel : ViewModel() {
                 }
                 val result = ServiceManager.COMMAND_LAB_USER_SERVICE.uploadLibrary(request)
                 withContext(Dispatchers.Main) {
-                    uploadingLibraryIndex = -1
+                    uploadingLocalEntryId = null
                     if (result.isSuccess()) {
                         Toaster.show("上传成功")
                         // 上传成功：把后端分配的 uuid 写回本地副本，并清掉未同步标记
                         // 之后用户在本地再编辑才会把 flag 变回 true，符合预期的同步语义
                         val assignedUuid = result.data?.uuid
-                        if (localDataStore != null && localIndex >= 0) {
-                            val updated = library.apply {
-                                if (!assignedUuid.isNullOrEmpty()) uuid = assignedUuid
-                                localUnsynced = false
-                            }
+                        if (localDataStore != null) {
                             launch(Dispatchers.IO) {
-                                localDataStore.updateLocalLibraryFunction(localIndex, updated)
+                                localDataStore.markLocalLibrarySynced(
+                                    localEntryId = localEntryId,
+                                    uuid = assignedUuid,
+                                    syncedLibrary = library
+                                )
                             }
                         }
                         // 云端列表变了，让缓存失效，loadCloudLibraries 才会真正去拉
@@ -248,7 +249,7 @@ class LocalLibraryListViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    uploadingLibraryIndex = -1
+                    uploadingLocalEntryId = null
                     Toaster.show("网络错误: ${e.message}")
                 }
             }
@@ -282,25 +283,7 @@ class LocalLibraryListViewModel : ViewModel() {
 
     companion object {
         fun buildFullMCD(library: LibraryFunction): String {
-            val mcdBuilder = StringBuilder()
-            mcdBuilder.append("@name=${library.name ?: ""}\n")
-            mcdBuilder.append("@version=${library.version?.ifEmpty { "1.0.0" } ?: "1.0.0"}\n")
-
-            if (!library.tags.isNullOrEmpty()) {
-                mcdBuilder.append("@tags=${library.tags!!.joinToString(",")}\n")
-            }
-
-            mcdBuilder.append("@note=${library.note ?: ""}\n")
-            if (library.content?.contains("@mcd_version=2") == true) {
-                mcdBuilder.append("@mcd_version=2\n")
-            }
-            if (!library.uuid.isNullOrEmpty()) {
-                mcdBuilder.append("@uuid=${library.uuid}\n")
-            }
-            mcdBuilder.append("\n###Function###\n")
-            mcdBuilder.append(library.content ?: "")
-            mcdBuilder.append("\n###End###")
-            return mcdBuilder.toString()
+            return library.toFullLocalMcd()
         }
     }
 }
