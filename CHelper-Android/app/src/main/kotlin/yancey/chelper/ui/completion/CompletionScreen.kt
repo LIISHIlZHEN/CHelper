@@ -475,7 +475,7 @@ fun CompletionScreen(
                                 val realIndex = suggestionIndex - 1
                                 val suggestionText =
                                     remember(viewModel.suggestionsUpdateTimes, realIndex) {
-                                        val suggestion = viewModel.core?.getSuggestion(realIndex)
+                                        val suggestion = viewModel.getSuggestion(realIndex)
                                         if (suggestion != null && suggestion.description != null) {
                                             (suggestion.name
                                                 ?: "") + " - " + suggestion.description!!
@@ -516,7 +516,7 @@ fun CompletionScreen(
                             ) {
                                 val suggestion =
                                     remember(viewModel.suggestionsUpdateTimes, suggestionIndex) {
-                                        viewModel.core?.getSuggestion(suggestionIndex)
+                                        viewModel.getSuggestion(suggestionIndex)
                                     }
                                 suggestion?.name?.let {
                                     Text(

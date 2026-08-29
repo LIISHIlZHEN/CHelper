@@ -20,8 +20,8 @@
 #include <gtest/gtest.h>
 
 void testCommand(CHelper::CHelperCore *core, const std::u16string &command) {
-    core->onTextChanged(command, command.length());
-    CHelper::SyntaxHighlight::SyntaxResult syntaxResult = core->getSyntaxResult();
+    std::unique_ptr<CHelper::CommandContext> context(core->createContext(command));
+    CHelper::SyntaxHighlight::SyntaxResult syntaxResult = context->getSyntaxResult();
     std::string stringBuilder;
 
     constexpr uint32_t NO_COLOR = 0xFFFFFFFF;
@@ -144,8 +144,7 @@ TEST(ColorStringTest, ColorString) {
             uR"(setblock ~~~ candle_cake[lit=)",
             uR"(give @s repeating_command_block)",
             uR"(list)",
-            uR"(/list)"
-    };
+            uR"(/list)"};
     for (const auto &command: commands) {
         testCommand(core, command);
     }

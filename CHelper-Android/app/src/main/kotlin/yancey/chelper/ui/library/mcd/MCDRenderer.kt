@@ -418,16 +418,13 @@ private fun applyMcdHighlightSync(
                         is ChainItem.Block -> {
                             val cmd = item.block.command
                             if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) continue
-                            core.onTextChanged(cmd, 0)
-                            // copyOf：native 返回的数组可能被下次 onTextChanged 复用/覆盖
-                            item.block.syntaxHighlightTokens = core.syntaxToken?.copyOf()
+                            core.createContext(cmd).use { item.block.syntaxHighlightTokens = it.syntaxToken }
                             highlighted++
                         }
                         is ChainItem.RawCommand -> {
                             val cmd = item.command
                             if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) continue
-                            core.onTextChanged(cmd, 0)
-                            item.syntaxHighlightTokens = core.syntaxToken?.copyOf()
+                            core.createContext(cmd).use { item.syntaxHighlightTokens = it.syntaxToken }
                             highlighted++
                         }
                         else -> {}
@@ -480,15 +477,13 @@ private suspend fun applyMcdHighlightItemsAsync(
                     is ChainItem.Block -> {
                         val cmd = item.block.command
                         if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) return@synchronized false
-                        core.onTextChanged(cmd, 0)
-                        item.block.syntaxHighlightTokens = core.syntaxToken?.copyOf()
+                        core.createContext(cmd).use { item.block.syntaxHighlightTokens = it.syntaxToken }
                         true
                     }
                     is ChainItem.RawCommand -> {
                         val cmd = item.command
                         if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) return@synchronized false
-                        core.onTextChanged(cmd, 0)
-                        item.syntaxHighlightTokens = core.syntaxToken?.copyOf()
+                        core.createContext(cmd).use { item.syntaxHighlightTokens = it.syntaxToken }
                         true
                     }
                     else -> false

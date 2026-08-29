@@ -19,6 +19,8 @@ export default {
       errorReason: '',
       suggestions: [],
       realSuggestionSize: 0,
+      // 补全提示对应的光标位置，加载更多和点击补全提示时使用
+      suggestionIndex: 0,
       isBranchSelectorVisible: false,
       editorValue: {
         text: '',
@@ -29,6 +31,7 @@ export default {
   },
   async created() {
     this.core = undefined
+    this.context = undefined
     this.setCore(await getCore(DEFAULT_BRANCH))
   },
   mounted() {
@@ -43,21 +46,42 @@ export default {
   },
   methods: {
     setCore(newCore) {
+      this.releaseContext()
       if (this.core !== undefined) {
         this.core.release()
       }
       this.core = newCore
+      this.recreateContext(this.editorValue.text)
       this.onEditorValueChanged(this.editorValue)
     },
     release() {
+      this.releaseContext()
       if (this.core === undefined) {
         return
       }
       this.core.release()
       this.core = undefined
     },
+    releaseContext() {
+      if (this.context !== undefined) {
+        this.context.release()
+        this.context = undefined
+      }
+    },
+    recreateContext(text) {
+      this.releaseContext()
+      if (this.core === undefined) {
+        return
+      }
+      this.context = this.core.createContext(text)
+    },
     updateSuggestions() {
-      this.realSuggestionSize = this.core.getSuggestionSize()
+      if (this.context === undefined) {
+        return
+      }
+      // 补全提示是按光标位置计算的，记住这个位置，加载更多和点击补全时都要用同一个位置
+      this.suggestionIndex = this.editorValue.cursorPosition
+      this.realSuggestionSize = this.context.getSuggestionSize(this.suggestionIndex)
       this.suggestions = []
       this.loadMore(Math.floor(this.$refs.listRef.clientHeight / 25))
     },
@@ -67,26 +91,25 @@ export default {
         this.structure = '欢迎使用CHelper'
         this.paramHint = '作者：Yancey'
         this.errorReason = ''
-        if (this.core !== undefined) {
-          this.core.onTextChanged(this.editorValue.text, this.editorValue.cursorPosition)
-          this.updateSuggestions()
-        }
+        this.recreateContext(newEditorValue.text)
+        this.updateSuggestions()
         return
       }
-      if (this.core === undefined) {
+      if (this.context === undefined) {
         return
       }
       if (this.editorValue.text === newEditorValue.text) {
         if (this.editorValue.cursorPosition === newEditorValue.cursorPosition) {
           return
         }
+        // 只有光标改变，无需重新解析，直接用新的光标位置查询
         this.editorValue = newEditorValue
-        this.core.onSelectionChanged(this.editorValue.cursorPosition)
       } else {
+        // 文本内容改变，重新解析命令生成新的命令上下文
         this.editorValue = newEditorValue
-        this.core.onTextChanged(this.editorValue.text, this.editorValue.cursorPosition)
-        this.structure = this.core.getStructure()
-        const errorReasons = this.core.getErrorReasons()
+        this.recreateContext(newEditorValue.text)
+        this.structure = this.context.getStructure()
+        const errorReasons = this.context.getErrorReasons()
         if (errorReasons.length === 0) {
           this.errorReason = ''
         } else if (errorReasons.length === 1) {
@@ -97,19 +120,19 @@ export default {
             this.errorReason += `\n${i + 1}. ${errorReasons[i].errorReason}`
           }
         }
-        this.syntaxTokens = this.core.getSyntaxTokens()
+        this.syntaxTokens = this.context.getSyntaxTokens()
       }
-      this.paramHint = this.core.getParamHint()
+      this.paramHint = this.context.getParamHint(this.editorValue.cursorPosition)
       this.updateSuggestions()
     },
     loadMore(count) {
-      if (this.core === undefined) {
+      if (this.context === undefined) {
         return
       }
       const start = this.suggestions.length
       const end = Math.min(start + count, this.realSuggestionSize)
       for (let i = start; i < end; i++) {
-        this.suggestions.push(this.core.getSuggestion(i))
+        this.suggestions.push(this.context.getSuggestion(this.suggestionIndex, i))
       }
     },
     onSuggestionScroll() {
@@ -121,10 +144,13 @@ export default {
       }
     },
     onSuggestionClick(which) {
-      if (this.core === undefined) {
+      if (this.context === undefined) {
         return
       }
-      const clickSuggestionResult = this.core.onSuggestionClick(which)
+      const clickSuggestionResult = this.context.applySuggestion(
+        this.editorValue.cursorPosition,
+        which
+      )
       if (clickSuggestionResult == null) {
         return
       }

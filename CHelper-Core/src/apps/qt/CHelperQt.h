@@ -38,17 +38,21 @@ public:
     ~CHelperApp() override;
 
 private slots:
-    void onTextChanged(const QString &string) const;
+    void onTextChanged(const QString &string);
 
-    void onSelectionChanged() const;
+    void onSelectionChanged();
 
-    void onSuggestionClick(const QModelIndex &index) const;
+    void onSuggestionClick(const QModelIndex &index);
 
     void copy() const;
 
 private:
     Ui::CHelperApp *ui;
     CHelper::CHelperCore *core = nullptr;
+    // 当前输入框文本对应的命令上下文，文本内容改变时重新创建
+    CHelper::CommandContext *context = nullptr;
+    // 上次创建命令上下文时的文本内容，用于判断文本是否真的改变了
+    QString lastText;
 };
 
 int main(int argc, char *argv[]);

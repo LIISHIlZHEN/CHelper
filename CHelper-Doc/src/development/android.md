@@ -24,6 +24,21 @@ sourceSets.all {
 
 你可以直接使用 CHelper-Android 项目的内核交互相关代码：<https://github.com/Yancey2023/CHelper/tree/master/CHelper-Android/app/src/main/kotlin/yancey/chelper/core>
 
+内核本身不保存任何文本和光标状态，所有的命令相关功能都在`CommandContext`上执行。通过`createContext(command)`把命令文本解析成AST生成独立的命令上下文，然后在没有可变状态的`CommandContext`上执行各种只读操作：
+
+```kt
+CHelperCore.fromAssets(assetManager, cpackPath).use { core ->
+    core.createContext("give @s stone 12 1").use { context ->
+        println(context.structure)
+        println(context.getParamHint(8))
+        println(context.getSuggestions(context.command!!.length)?.size)
+        println(context.syntaxToken?.contentToString())
+    }
+}
+```
+
+由于`CommandContext`没有可变状态，同一条命令解析一次后，可以被多个线程同时读取；也可以基于同一个内核为多条命令创建多个`CommandContext`并行工作。`CommandContext`持有资源包的共享引用，即使`CHelperCore`先被`close()`，`CommandContext`依然可用。
+
 需要注意的是，如果你开启了代码混淆，那么你需要在代码混淆配置文件中添加以下内容：
 
 ```plain

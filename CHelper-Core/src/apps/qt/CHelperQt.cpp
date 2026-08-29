@@ -59,27 +59,34 @@ CHelperApp::CHelperApp(QWidget *parent)
 
 CHelperApp::~CHelperApp() {
     delete ui;
+    CHelper::CHelperCore::deleteContext(context);
     delete core;
 }
 
-void CHelperApp::onTextChanged([[maybe_unused]] const QString &string) const {
+void CHelperApp::onTextChanged([[maybe_unused]] const QString &string) {
     onSelectionChanged();
 }
 
-void CHelperApp::onSelectionChanged() const {
+void CHelperApp::onSelectionChanged() {
     if (core == nullptr) [[unlikely]] {
         return;
     }
     QString string = ui->lineEdit->text();
-    core->onTextChanged(string.toStdU16String(), ui->lineEdit->cursorPosition());
-    if (string == nullptr) [[unlikely]] {
+    if (string != lastText) [[likely]] {
+        // 文本内容改变时重新解析命令，生成新的命令上下文
+        lastText = string;
+        CHelper::CHelperCore::deleteContext(context);
+        context = core->createContext(string.toStdU16String());
+    }
+    size_t cursorPosition = static_cast<size_t>(ui->lineEdit->cursorPosition());
+    if (string.isEmpty()) [[unlikely]] {
         ui->structureLabel->setText("欢迎使用CHelper");
         ui->descriptionLabel->setText("作者：Yancey");
         ui->errorReasonLabel->setText(nullptr);
     } else {
-        ui->structureLabel->setText(QString::fromStdU16String(core->getStructure()));
-        ui->descriptionLabel->setText(QString::fromStdU16String(core->getParamHint()));
-        std::vector<std::shared_ptr<CHelper::ErrorReason>> errorReasons = core->getErrorReasons();
+        ui->structureLabel->setText(QString::fromStdU16String(context->getStructure()));
+        ui->descriptionLabel->setText(QString::fromStdU16String(context->getParamHint(cursorPosition)));
+        std::vector<std::shared_ptr<CHelper::ErrorReason>> errorReasons = context->getErrorReasons();
         if (errorReasons.empty()) [[unlikely]] {
             ui->errorReasonLabel->setText(nullptr);
         } else if (errorReasons.size() == 1) [[unlikely]] {
@@ -93,9 +100,9 @@ void CHelperApp::onSelectionChanged() const {
             ui->errorReasonLabel->setText(QString::fromStdU16String(result));
         }
     }
-    std::vector<CHelper::AutoSuggestion::Suggestion> *suggestions = core->getSuggestions();
+    std::vector<CHelper::AutoSuggestion::Suggestion> suggestions = context->getSuggestions(cursorPosition);
     QStringList list;
-    for (const CHelper::AutoSuggestion::Suggestion &suggestion: *suggestions) {
+    for (const CHelper::AutoSuggestion::Suggestion &suggestion: suggestions) {
         list.append(QString::fromStdU16String(
                 suggestion.content->description.has_value()
                         ? suggestion.content->name + u" - " + suggestion.content->description.value()
@@ -105,11 +112,12 @@ void CHelperApp::onSelectionChanged() const {
     ui->listView->scrollToTop();
 }
 
-void CHelperApp::onSuggestionClick(const QModelIndex &index) const {
-    if (core == nullptr) [[unlikely]] {
+void CHelperApp::onSuggestionClick(const QModelIndex &index) {
+    if (context == nullptr) [[unlikely]] {
         return;
     }
-    std::optional<std::pair<std::u16string, size_t>> result = core->onSuggestionClick(index.row());
+    std::optional<std::pair<std::u16string, size_t>> result = context->applySuggestion(
+            static_cast<size_t>(ui->lineEdit->cursorPosition()), static_cast<size_t>(index.row()));
     if (result.has_value()) [[likely]] {
         ui->lineEdit->setText(QString::fromStdU16String(result.value().first));
         ui->lineEdit->setCursorPosition(static_cast<int>(result.value().second));

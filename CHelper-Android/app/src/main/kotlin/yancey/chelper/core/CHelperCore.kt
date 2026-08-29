@@ -24,8 +24,13 @@ import com.hjq.toast.Toaster
 import java.io.Closeable
 
 /**
- * 软件的内核，与c++代码交互
+ * 软件的内核，与c++代码交互，负责持有资源包
  * 支持为不同的资源包同时创建多个内核实例
+ *
+ * 所有和命令相关的功能都在[CommandContext]上执行：
+ * 通过[createContext]把命令文本解析成AST生成命令上下文，
+ * 然后在CommandContext上获取命令结构、参数注释、补全提示、语法高亮等
+ * 内核本身没有可变状态，可以被多个线程同时使用
  */
 class CHelperCore private constructor(
     assetManager: AssetManager?,
@@ -57,138 +62,27 @@ class CHelperCore private constructor(
     }
 
     /**
-     * 文本改变时通知c++内核
-     * 
-     * @param text  文本内容
-     * @param index 光标位置
+     * 把命令文本解析成AST，生成独立的命令上下文
+     * 适用于多线程并行的场景：
+     * 可以创建任意多个CommandContext，把它们交给不同的线程同时使用
+     *
+     * @param command 命令文本
+     * @return 命令上下文，用完后记得调用close()释放内存
      */
-    fun onTextChanged(text: String, index: Int) {
+    fun createContext(command: String): CommandContext {
         if (pointer == 0L) {
-            return
+            throw RuntimeException("fail to create CommandContext because core is closed")
         }
-        onTextChanged0(pointer, text, index)
+        val contextPointer = createContext0(pointer, command)
+        if (contextPointer == 0L) {
+            throw RuntimeException("fail to create CommandContext: $command")
+        }
+        return CommandContext(contextPointer)
     }
-
-    /**
-     * 光标改变时通知c++内核
-     * 
-     * @param index 光标位置
-     */
-    fun onSelectionChanged(index: Int) {
-        if (pointer == 0L) {
-            return
-        }
-        onSelectionChanged0(pointer, index)
-    }
-
-    val paramHint: String?
-        /**
-         * 获取当前命令参数的介绍
-         */
-        get() {
-            if (pointer == 0L) {
-                return null
-            }
-            return getParamHint0(pointer)
-        }
-
-    val errorReasons: Array<ErrorReason>?
-        /**
-         * 获取当前命令的错误原因
-         */
-        get() {
-            if (pointer == 0L) {
-                return null
-            }
-            return getErrorReasons0(pointer)
-        }
-
-    val suggestionsSize: Int
-        /**
-         * 获取当前命令的补全提示数量
-         */
-        get() {
-            if (pointer == 0L) {
-                return 0
-            }
-            return getSuggestionsSize0(pointer)
-        }
-
-    /**
-     * 获取当前命令其中一个补全提示
-     * 
-     * @param which 第几个补全提示，从0开始
-     */
-    fun getSuggestion(which: Int): Suggestion? {
-        if (pointer == 0L) {
-            return null
-        }
-        return getSuggestion0(pointer, which)
-    }
-
-    val suggestions: Array<Suggestion?>?
-        /**
-         * 获取当前命令的所有补全提示
-         * 由于性能原因，不建议使用这个方法，建议按需获取
-         * 
-         * @return 所有补全提示
-         */
-        get() {
-            if (pointer == 0L) {
-                return null
-            }
-            return getSuggestions0(pointer)
-        }
-
-    val structure: String?
-        /**
-         * 获取当前命令的语法结构
-         */
-        get() {
-            if (pointer == 0L) {
-                return null
-            }
-            return getStructure0(pointer)
-        }
-
-    val nodeCount: Int
-        /**
-         * 获取最佳解析路径中已经匹配的命令语义节点数量
-         */
-        get() {
-            if (pointer == 0L) {
-                return 0
-            }
-            return getNodeCount0(pointer)
-        }
-
-    /**
-     * 补全提示被使用时通知c++内核
-     * 
-     * @param which 第几个补全提示，从0开始
-     */
-    fun onSuggestionClick(which: Int): ClickSuggestionResult? {
-        if (pointer == 0L) {
-            return null
-        }
-        return onSuggestionClick0(pointer, which)
-    }
-
-    val syntaxToken: IntArray?
-        /**
-         * 获取文本颜色
-         * 
-         * @return 每个字符的类型
-         */
-        get() {
-            if (pointer == 0L) {
-                return null
-            }
-            return getColors0(pointer)
-        }
 
     /**
      * 关闭内核，释放内存
+     * 内核关闭后已经创建的CommandContext依然可用
      */
     override fun close() {
         if (pointer == 0L) {
@@ -211,7 +105,7 @@ class CHelperCore private constructor(
 
         /**
          * 从软件内置资源包加载内核
-         * 
+         *
          * @param assetManager 软件内置资源管理器
          * @param path         文件路径
          * @return 软件内核
@@ -222,7 +116,7 @@ class CHelperCore private constructor(
 
         /**
          * 从文件加载内核
-         * 
+         *
          * @param path 文件路径
          * @return 软件内核
          */
@@ -232,7 +126,7 @@ class CHelperCore private constructor(
 
         /**
          * 是否是软件内置的资源包
-         * 
+         *
          * @param context 上下文
          * @return old 旧命令
          */
@@ -257,7 +151,7 @@ class CHelperCore private constructor(
 
         /**
          * 调用c++创建内核
-         * 
+         *
          * @param assetManager 软件内置资源管理器
          * @param cpackPath    资源包路径
          * @return 内核的内存地址
@@ -267,111 +161,25 @@ class CHelperCore private constructor(
 
         /**
          * 调用c++释放内核
-         * 
+         *
          * @param pointer 内核的内存地址
          */
         @JvmStatic
         private external fun release0(pointer: Long)
 
         /**
-         * 文本改变时通知c++内核
-         * 
-         * @param pointer 内核的内存地址
-         * @param text    文本内容
-         * @param index   光标位置
-         */
-        @JvmStatic
-        private external fun onTextChanged0(pointer: Long, text: String, index: Int)
-
-        /**
-         * 光标改变时通知c++内核
-         * 
-         * @param pointer 内核的内存地址
-         * @param index   光标位置
-         */
-        @JvmStatic
-        private external fun onSelectionChanged0(pointer: Long, index: Int)
-
-        /**
-         * 获取当前命令参数的介绍
-         * 
-         * @param pointer 内核的内存地址
-         */
-        @JvmStatic
-        private external fun getParamHint0(pointer: Long): String?
-
-        /**
-         * 获取当前命令的错误原因
-         * 
-         * @param pointer 内核的内存地址
-         */
-        @JvmStatic
-        private external fun getErrorReasons0(pointer: Long): Array<ErrorReason>?
-
-        /**
-         * 获取当前命令的补全提示数量
-         * 
-         * @param pointer 内核的内存地址
-         */
-        @JvmStatic
-        private external fun getSuggestionsSize0(pointer: Long): Int
-
-        /**
-         * 获取当前命令其中一个补全提示
-         * 
-         * @param pointer 内核的内存地址
-         * @param which   第几个补全提示，从0开始
-         */
-        @JvmStatic
-        private external fun getSuggestion0(pointer: Long, which: Int): Suggestion?
-
-        /**
-         * 获取当前命令的所有补全提示
-         * 由于性能原因，不建议使用这个方法，建议按需获取
-         * 
-         * @param pointer 第几个补全提示，从0开始
-         * @return 所有补全提示
-         */
-        @JvmStatic
-        external fun getSuggestions0(pointer: Long): Array<Suggestion?>?
-
-        /**
-         * 获取当前命令的语法结构
-         * 
-         * @param pointer 内核的内存地址
-         */
-        @JvmStatic
-        private external fun getStructure0(pointer: Long): String?
-
-        /**
-         * 获取最佳解析路径中已经匹配的命令语义节点数量
+         * 调用c++把命令文本解析成AST，创建命令上下文
          *
          * @param pointer 内核的内存地址
+         * @param command 命令文本
+         * @return 命令上下文的内存地址
          */
         @JvmStatic
-        private external fun getNodeCount0(pointer: Long): Int
-
-        /**
-         * 补全提示被使用时通知c++内核
-         * 
-         * @param pointer 内核的内存地址
-         * @param which   第几个补全提示，从0开始
-         */
-        @JvmStatic
-        private external fun onSuggestionClick0(pointer: Long, which: Int): ClickSuggestionResult?
-
-        /**
-         * 获取文本颜色
-         * 
-         * @param pointer 内核的内存地址
-         * @return 每个字符的颜色
-         */
-        @JvmStatic
-        private external fun getColors0(pointer: Long): IntArray?
+        private external fun createContext0(pointer: Long, command: String): Long
 
         /**
          * 初始化"旧命令转新命令"功能
-         * 
+         *
          * @param assetManager 软件内置资源管理器
          * @param path         数据文件路径
          */
@@ -381,7 +189,7 @@ class CHelperCore private constructor(
         /**
          * 旧命令转新命令
          * 使用前记得先初始化
-         * 
+         *
          * @param old 旧命令
          * @return 新命令
          */

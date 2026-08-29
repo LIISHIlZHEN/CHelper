@@ -22,24 +22,27 @@
 #define CHELPER_CHELPERCORE_H
 
 #include "old2new/Old2New.h"
-#include <chelper/auto_suggestion/Suggestion.h>
-#include <chelper/parser/ASTNode.h>
+#include <chelper/CommandContext.h>
 #include <chelper/resources/CPack.h>
-#include <chelper/syntax_highlight/SyntaxResult.h>
 #include <pch.h>
 
 namespace CHelper {
 
+    /**
+     * 软件内核，负责持有资源包(CPack)
+     * 所有和命令相关的功能都在CommandContext上执行：
+     * 通过createContext把命令文本解析成AST生成命令上下文，
+     * 然后在CommandContext上获取命令结构、参数注释、补全建议、语法高亮等
+     * CHelperCore本身没有可变状态，可以被多个线程同时使用
+     */
     class CHelperCore {
     private:
-        std::u16string input;
-        size_t index = 0;
-        std::unique_ptr<CPack> cpack;
-        ASTNode astNode;
-        std::shared_ptr<std::vector<AutoSuggestion::Suggestion>> suggestions;
+        // 使用shared_ptr持有资源包，这样CHelperCore创建的CommandContext
+        // 可以共享资源包，且CommandContext的生命周期可以独立于CHelperCore
+        std::shared_ptr<const CPack> cpack;
 
     public:
-        CHelperCore(std::unique_ptr<CPack> cpack, ASTNode astNode);
+        explicit CHelperCore(std::shared_ptr<const CPack> cpack);
 
         static CHelperCore *create(const std::function<std::unique_ptr<CPack>()> &getCPack);
 
@@ -51,27 +54,23 @@ namespace CHelper {
         static CHelperCore *createByBinary(const std::filesystem::path &cpackPath);
 #endif
 
-        void onTextChanged(const std::u16string &content, size_t index);
-
-        void onSelectionChanged(size_t index0);
-
         [[nodiscard]] const CPack &getCPack() const;
 
-        [[nodiscard]] const ASTNode *getAstNode() const;
+        /**
+         * 把命令文本解析成AST，生成独立的命令上下文
+         * 适用于下游多线程并行的场景：
+         * 同一个CHelperCore可以创建任意多个CommandContext，
+         * 这些CommandContext可以在不同线程中同时使用
+         * @param command 命令文本
+         * @return 创建的CommandContext指针，用完后需要用deleteContext释放
+         */
+        [[nodiscard]] CommandContext *createContext(std::u16string command) const;
 
-        [[nodiscard]] std::u16string getParamHint() const;
-
-        [[nodiscard]] std::vector<std::shared_ptr<ErrorReason>> getErrorReasons() const;
-
-        std::vector<AutoSuggestion::Suggestion> *getSuggestions();
-
-        [[nodiscard]] std::u16string getStructure() const;
-
-        [[nodiscard]] size_t getNodeCount() const;
-
-        [[nodiscard]] SyntaxHighlight::SyntaxResult getSyntaxResult() const;
-
-        [[nodiscard]] std::optional<std::pair<std::u16string, size_t>> onSuggestionClick(size_t which);
+        /**
+         * 释放createContext创建的命令上下文
+         * @param context 命令上下文，为nullptr时什么也不做
+         */
+        static void deleteContext(CommandContext *context);
 
         static std::u16string old2new(const Old2New::BlockFixData &blockFixData, std::u16string old);
     };
