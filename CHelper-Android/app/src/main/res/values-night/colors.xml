@@ -2,5 +2,4 @@
 <resources>
     <color name="background">#1E1F22</color>
     <color name="scroll_bar">#99969696</color>
-    <color name="text_main">#FFDDDDDD</color>
 </resources>

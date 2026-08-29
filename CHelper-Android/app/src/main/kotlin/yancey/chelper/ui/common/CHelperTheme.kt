@@ -124,6 +124,18 @@ object CHelperTheme {
         @Composable
         get() = LocalBackground.current
 
+    /**
+     * 将设置中的主题 id 映射为 Compose 主题
+     *
+     * @param themeId 设置中保存的主题 id
+     * @param isSystemDarkMode 系统当前是否处于夜间模式，跟随系统时使用
+     */
+    fun themeOf(themeId: String, isSystemDarkMode: Boolean): Theme = when (themeId) {
+        "MODE_NIGHT_NO" -> Theme.Light
+        "MODE_NIGHT_YES" -> Theme.Dark
+        else -> if (isSystemDarkMode) Theme.Dark else Theme.Light
+    }
+
     enum class Theme {
         Light, Dark
     }

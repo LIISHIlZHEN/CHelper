@@ -30,7 +30,6 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import androidx.appcompat.widget.AppCompatEditText
-import yancey.chelper.R
 import yancey.chelper.core.ErrorReason
 import yancey.chelper.core.SelectedString
 import yancey.chelper.core.Theme
@@ -43,6 +42,7 @@ class CommandEditText : AppCompatEditText {
     private var onSelectionChanged: (() -> Unit)? = null
     private var errorReasons: Array<ErrorReason>? = null
     private var theme: Theme? = null
+    private var normalColor: Int = 0
     private var errorReasonPaint: Paint? = null
     private var errorReasonOffsetY = 0
     private var lastTokens: IntArray? = null
@@ -81,8 +81,14 @@ class CommandEditText : AppCompatEditText {
         this.onSelectionChanged = onSelectionChanged
     }
 
-    fun setTheme(theme: Theme) {
+    fun setTheme(theme: Theme, normalColor: Int) {
+        if (this.theme == theme && this.normalColor == normalColor) {
+            return
+        }
         this.theme = theme
+        this.normalColor = normalColor
+        // 主题或普通文本颜色变化后，需要忽略缓存强制重新上色
+        lastTokens = null
     }
 
     /**
@@ -187,7 +193,9 @@ class CommandEditText : AppCompatEditText {
             return
         }
 
-        val normalColor = context.getColor(R.color.text_main)
+        // 普通文本颜色跟随调用方传入的当前主题，而不是按系统 uiMode 解析的资源颜色，
+        // 否则应用设置为夜间、系统为亮色时（例如悬浮窗）会解析出亮色主题的文字颜色
+        val normalColor = this.normalColor
         val targetSpans = mutableListOf<SpanInfo>()
 
         var lastIndex = 0

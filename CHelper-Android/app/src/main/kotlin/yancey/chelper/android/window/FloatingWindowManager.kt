@@ -105,6 +105,9 @@ class FloatingWindowManager(
         floatingWindowScreenAlpha: Float,
         isFloatingWindowFontAlphaSync: Boolean,
     ) {
+        val settingsDataStore = SettingsDataStore(context)
+        // 在创建 ComposeView 前同步确定主题，避免悬浮窗先以亮色首帧渲染再动画切换到夜间
+        theme = CHelperTheme.themeOf(settingsDataStore.themeIdBlocking(), isSystemDarkMode())
         val iconSize = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             floatingWindowIconSize.toFloat(),
@@ -207,20 +210,13 @@ class FloatingWindowManager(
             )
             .setWindowAnim(0)
             .setWindowAlpha(if (isFloatingWindowFontAlphaSync) floatingWindowScreenAlpha else 1.0f)
-        val settingsDataStore = SettingsDataStore(context)
         composeLifecycleOwner = ComposeLifecycleOwner().apply {
             attachToDecorView(mainViewWindow!!.rootLayout)
             onCreate()
             onStart()
-            val isSystemDarkMode =
-                (application.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
             lifecycleScope.launch {
                 settingsDataStore.themeId().collect {
-                    theme = when (it) {
-                        "MODE_NIGHT_NO" -> CHelperTheme.Theme.Light
-                        "MODE_NIGHT_YES" -> CHelperTheme.Theme.Dark
-                        else -> if (isSystemDarkMode) CHelperTheme.Theme.Dark else CHelperTheme.Theme.Light
-                    }
+                    theme = CHelperTheme.themeOf(it, isSystemDarkMode())
                 }
             }
         }
@@ -279,4 +275,7 @@ class FloatingWindowManager(
             }
         }
     }
+
+    private fun isSystemDarkMode(): Boolean =
+        (application.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 }

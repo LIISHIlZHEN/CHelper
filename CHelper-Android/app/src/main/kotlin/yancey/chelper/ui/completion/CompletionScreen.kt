@@ -696,9 +696,6 @@ fun CompletionScreen(
                             background = null
                             hint = hintStr
                             setEditorMode(viewModel.isCommandEditorMode)
-                            setTextColor(textMain.toArgb())
-                            setHintTextColor(textSecondary.toArgb())
-                            setTheme(if (theme == CHelperTheme.Theme.Light) Theme.THEME_DAY else Theme.THEME_NIGHT)
                             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
                             setListener({ str ->
                                 viewModel.command.edit {
@@ -714,6 +711,14 @@ fun CompletionScreen(
                     },
                     update = { view ->
                         view.setEditorMode(viewModel.isCommandEditorMode)
+                        // 主题相关的样式在 update 中应用，
+                        // 否则悬浮窗首帧或运行时切换主题后，EditText 仍停留在亮色文本主题
+                        view.setTextColor(textMain.toArgb())
+                        view.setHintTextColor(textSecondary.toArgb())
+                        view.setTheme(
+                            if (theme == CHelperTheme.Theme.Light) Theme.THEME_DAY else Theme.THEME_NIGHT,
+                            textMain.toArgb()
+                        )
                         val str = viewModel.command.text.toString()
                         val selectionStart = viewModel.command.selection.start
                         val selectionEnd = viewModel.command.selection.end

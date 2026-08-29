@@ -58,11 +58,7 @@ class Old2NewIMEService : InputMethodService() {
         }
         composeLifecycleOwner.lifecycleScope.launch {
             settingsDataStore.themeId().collect { themeId ->
-                theme = when (themeId) {
-                    "MODE_NIGHT_NO" -> CHelperTheme.Theme.Light
-                    "MODE_NIGHT_YES" -> CHelperTheme.Theme.Dark
-                    else -> if (isSystemDarkMode) CHelperTheme.Theme.Dark else CHelperTheme.Theme.Light
-                }
+                theme = CHelperTheme.themeOf(themeId, isSystemDarkMode)
                 val newNightMode =
                     if (theme == CHelperTheme.Theme.Dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
                 resources.configuration.uiMode =

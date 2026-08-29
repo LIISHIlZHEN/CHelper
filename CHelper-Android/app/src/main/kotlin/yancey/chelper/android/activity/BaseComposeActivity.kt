@@ -52,34 +52,13 @@ abstract class BaseComposeActivity : ComponentActivity() {
 
     protected var settingsDataStore = SettingsDataStore(this)
     protected var theme by mutableStateOf(CHelperTheme.Theme.Light)
-    protected var isSystemDarkMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        isSystemDarkMode =
-            (application.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        // 在首帧渲染前同步应用一次主题设置，避免启动时先渲染亮色再动画切换到夜间
+        applyTheme(settingsDataStore.themeIdBlocking())
         lifecycleScope.launch {
             settingsDataStore.themeId().collect { themeId ->
-                val isDarkBefore =
-                    (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-                when (themeId) {
-                    "MODE_NIGHT_NO" -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-                    "MODE_NIGHT_YES" -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-                    else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
-                }
-                theme = when (themeId) {
-                    "MODE_NIGHT_NO" -> CHelperTheme.Theme.Light
-                    "MODE_NIGHT_YES" -> CHelperTheme.Theme.Dark
-                    else -> if (isSystemDarkMode) CHelperTheme.Theme.Dark else CHelperTheme.Theme.Light
-                }
-                val isDarkMode = theme == CHelperTheme.Theme.Dark
-                if (isDarkBefore != isDarkMode) {
-                    WindowInsetsControllerCompat(window, window.decorView).apply {
-                        isAppearanceLightStatusBars = !isDarkMode
-                        isAppearanceLightNavigationBars = !isDarkMode
-                    }
-                    resources.configuration.uiMode =
-                        if (isDarkMode) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
-                }
+                applyTheme(themeId)
             }
         }
         enableEdgeToEdge(
@@ -92,6 +71,29 @@ abstract class BaseComposeActivity : ComponentActivity() {
             }
         )
         super.onCreate(savedInstanceState)
+    }
+
+    private fun isSystemDarkMode(): Boolean =
+        (application.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+    private fun applyTheme(themeId: String) {
+        val isDarkBefore =
+            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        when (themeId) {
+            "MODE_NIGHT_NO" -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            "MODE_NIGHT_YES" -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        }
+        theme = CHelperTheme.themeOf(themeId, isSystemDarkMode())
+        val isDarkMode = theme == CHelperTheme.Theme.Dark
+        if (isDarkBefore != isDarkMode) {
+            WindowInsetsControllerCompat(window, window.decorView).apply {
+                isAppearanceLightStatusBars = !isDarkMode
+                isAppearanceLightNavigationBars = !isDarkMode
+            }
+            resources.configuration.uiMode =
+                if (isDarkMode) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
+        }
     }
 
     protected fun setContent(parent: CompositionContext? = null, content: @Composable () -> Unit) {

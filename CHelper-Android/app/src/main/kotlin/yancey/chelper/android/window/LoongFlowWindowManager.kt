@@ -304,6 +304,9 @@ class LoongFlowWindowManager(
 
     @Suppress("DEPRECATION")
     private fun showPanel(context: Context, mode: LoongFlowMode, library: LibraryFunction?) {
+        val settingsDataStore = SettingsDataStore(context)
+        // 在创建 ComposeView 前同步确定主题，避免面板先以亮色首帧渲染再动画切换到夜间
+        theme = CHelperTheme.themeOf(settingsDataStore.themeIdBlocking(), isSystemDarkMode())
         val metrics = currentScreenMetrics()
         val isLandscape = metrics.widthPx > metrics.heightPx
 
@@ -382,21 +385,14 @@ class LoongFlowWindowManager(
             .setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
             .setWindowAnim(0)
 
-        val settingsDataStore = SettingsDataStore(context)
         composeLifecycleOwner = ComposeLifecycleOwner().apply {
             attachToDecorView(panelWindow!!.rootLayout)
             onCreate()
             onStart()
 
-            val isSystemDarkMode =
-                (application.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
             lifecycleScope.launch {
                 settingsDataStore.themeId().collect {
-                    theme = when (it) {
-                        "MODE_NIGHT_NO" -> CHelperTheme.Theme.Light
-                        "MODE_NIGHT_YES" -> CHelperTheme.Theme.Dark
-                        else -> if (isSystemDarkMode) CHelperTheme.Theme.Dark else CHelperTheme.Theme.Light
-                    }
+                    theme = CHelperTheme.themeOf(it, isSystemDarkMode())
                 }
             }
             lifecycleScope.launch {
@@ -894,6 +890,9 @@ class LoongFlowWindowManager(
         val canPrev: Boolean,
         val color: Int,
     )
+
+    private fun isSystemDarkMode(): Boolean =
+        (application.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
     @Suppress("DEPRECATION")
     private fun currentScreenMetrics(): LoongFlowScreenMetrics {
