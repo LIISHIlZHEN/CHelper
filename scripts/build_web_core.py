@@ -52,9 +52,9 @@ def build_web_core(toolchain_dir: str):
             os.path.join(emsdk_path, "upstream", "emscripten", "em++.py"),
             f"{build_directory}/libCHelperWeb.a",
             f"{build_directory}/libCHelperNoFilesystemCore.a",
-            f"{build_directory}/3rdparty/fmt/libfmt.a",
-            f"{build_directory}/3rdparty/spdlog/libspdlog.a",
-            f"{build_directory}/3rdparty/xxHash/cmake_unofficial/libxxhash.a",
+            f"{build_directory}/_deps/fmt-build/libfmt.a",
+            f"{build_directory}/_deps/spdlog-build/libspdlog.a",
+            f"{build_directory}/_deps/xxhash-build/libxxhash.a",
             "-Os",
             "-o",
             f"{build_directory}/libCHelperWeb.js",
@@ -92,6 +92,16 @@ def build_web_core(toolchain_dir: str):
             "var wasmExports;export var createWasmFuture = createWasm()",
         )
         content += """
+// 内存视图可能因内存增长（ALLOW_MEMORY_GROWTH）而失效，每次读取前通过 HEAPU8 获取底层 buffer
+let u16View = null
+function getHEAPU16() {
+  const buffer = HEAPU8.buffer
+  if (u16View === null || u16View.buffer !== buffer) {
+    u16View = new Uint16Array(buffer)
+  }
+  return u16View
+}
+
 function alignPtr(ptr) {
   return ptr + (ptr % 4)
 }
@@ -102,7 +112,7 @@ function readString(ptr) {
   ptr += 4
   let result = ''
   for (let i = 0; i < length; i++) {
-    result += String.fromCharCode(HEAPU16[ptr >> 1])
+    result += String.fromCharCode(getHEAPU16()[ptr >> 1])
     ptr += 2
   }
   return result
@@ -115,10 +125,10 @@ function writeString(content) {
   const end = start + content.length
   let i = start
   while (i < end) {
-    HEAPU16[i] = content.charCodeAt(i - start)
+    getHEAPU16()[i] = content.charCodeAt(i - start)
     ++i
   }
-  HEAPU16[i] = 0
+  getHEAPU16()[i] = 0
   return ptr
 }
 
@@ -140,12 +150,12 @@ function readSuggestion(ptr, which) {
   ptr += 4
   let title = ''
   for (let i = 0; i < nameLength; i++) {
-    title += String.fromCharCode(HEAPU16[ptr >> 1])
+    title += String.fromCharCode(getHEAPU16()[ptr >> 1])
     ptr += 2
   }
   let description = ''
   for (let i = 0; i < descriptionLength; i++) {
-    description += String.fromCharCode(HEAPU16[ptr >> 1])
+    description += String.fromCharCode(getHEAPU16()[ptr >> 1])
     ptr += 2
   }
   return {

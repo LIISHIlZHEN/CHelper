@@ -38,8 +38,6 @@ jobs:
         uses: jurplel/install-qt-action@v4
 
       - uses: actions/checkout@v7
-        with:
-          submodules: 'recursive'
 
       - name: Set reusable strings
         id: strings
