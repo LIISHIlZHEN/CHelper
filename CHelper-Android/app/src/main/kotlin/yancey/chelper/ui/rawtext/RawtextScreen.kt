@@ -148,7 +148,14 @@ fun RawtextScreen(viewModel: RawtextViewModel = viewModel()) {
         onCopyByPreference = {
             val compressed = viewModel.copyFormat == "compressed"
             scope.launch {
-                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, viewModel.getRawJson(pretty = !compressed))))
+                clipboard.setClipEntry(
+                    ClipEntry(
+                        ClipData.newPlainText(
+                            null,
+                            viewModel.getRawJson(pretty = !compressed)
+                        )
+                    )
+                )
                 Toaster.show(if (compressed) "已复制压缩 JSON" else "已复制格式化 JSON")
             }
         },
@@ -267,7 +274,11 @@ fun RawtextScreenContent(
                         onBackspaceAtStart = onBackspaceAtStart,
                         onMoveSegment = onMoveSegment,
                         onRemoveSegment = onRemoveSegment,
-                        onAddFeature = { type -> onAddFeature(type)?.let { editingSegmentId = it } },
+                        onAddFeature = { type ->
+                            onAddFeature(type)?.let {
+                                editingSegmentId = it
+                            }
+                        },
                         onEditSegment = { editingSegmentId = it }
                     )
                     Spacer(Modifier.height(14.dp))
@@ -457,7 +468,10 @@ private fun ExperimentalFeatureWarningBanner() {
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFFFFA000).copy(alpha = 0.14f))
-            .border(BorderStroke(1.dp, Color(0xFFFFA000).copy(alpha = 0.32f)), RoundedCornerShape(16.dp))
+            .border(
+                BorderStroke(1.dp, Color(0xFFFFA000).copy(alpha = 0.32f)),
+                RoundedCornerShape(16.dp)
+            )
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -471,18 +485,30 @@ private fun ExperimentalFeatureWarningBanner() {
         ) {
             Text(
                 text = "!",
-                style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                style = TextStyle(
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "实验性功能",
-                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFFA000))
+                style = TextStyle(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFFA000)
+                )
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = "RawJSON 编辑器还在打磨中，复杂条件、翻译参数或旧版 JSON 解析可能不完全稳定。正式使用前建议先在测试世界验证。",
-                style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary, lineHeight = 17.sp)
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    color = CHelperTheme.colors.textSecondary,
+                    lineHeight = 17.sp
+                )
             )
         }
     }
@@ -512,9 +538,19 @@ private fun HeroMetric(label: String, value: String) {
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         if (value.isNotEmpty()) {
-            Text(text = value, style = TextStyle(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp))
+            Text(
+                text = value,
+                style = TextStyle(
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            )
         }
-        Text(text = label, style = TextStyle(color = Color.White.copy(alpha = 0.82f), fontSize = 11.sp))
+        Text(
+            text = label,
+            style = TextStyle(color = Color.White.copy(alpha = 0.82f), fontSize = 11.sp)
+        )
     }
 }
 
@@ -613,7 +649,8 @@ private fun InlineEditorPanel(
                     line.forEach { segment ->
                         val index = segments.indexOf(segment)
                         if (segment.type == RawtextSegmentType.Text) {
-                            val requester = focusRequesters.getOrPut(segment.id) { createFocusRequester() }
+                            val requester =
+                                focusRequesters.getOrPut(segment.id) { createFocusRequester() }
                             InlineTextField(
                                 segment = segment,
                                 isActive = activeTextSegmentId == segment.id,
@@ -782,7 +819,14 @@ private fun InlineFeatureChip(
                 .clickable { menuVisible = !menuVisible }
                 .padding(horizontal = 5.dp, vertical = 1.dp)
         ) {
-            Text(text = "⋮", style = TextStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold))
+            Text(
+                text = "⋮",
+                style = TextStyle(
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            )
         }
     }
 
@@ -812,18 +856,47 @@ private fun ChipActionDialog(
     onDismiss: () -> Unit,
 ) {
     CustomDialog(onDismissRequest = onDismiss) {
-        DialogContainer(modifier = Modifier.widthIn(max = 320.dp), backgroundNoTranslate = true, cornerSize = 18.dp) {
+        DialogContainer(
+            modifier = Modifier.widthIn(max = 320.dp),
+            backgroundNoTranslate = true,
+            cornerSize = 18.dp
+        ) {
             Column(modifier = Modifier.padding(18.dp)) {
-                Text(text = title, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    text = title,
+                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                )
                 Spacer(Modifier.height(14.dp))
-                RawtextFilledButton("编辑", CHelperTheme.colors.mainColor, Modifier.fillMaxWidth(), onClick = onEdit)
+                RawtextFilledButton(
+                    "编辑",
+                    CHelperTheme.colors.mainColor,
+                    Modifier.fillMaxWidth(),
+                    onClick = onEdit
+                )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RawtextFilledButton("← 左移", CHelperTheme.colors.textSecondary, Modifier.weight(1f), enabled = canMoveUp, onClick = onMoveUp)
-                    RawtextFilledButton("右移 →", CHelperTheme.colors.textSecondary, Modifier.weight(1f), enabled = canMoveDown, onClick = onMoveDown)
+                    RawtextFilledButton(
+                        "← 左移",
+                        CHelperTheme.colors.textSecondary,
+                        Modifier.weight(1f),
+                        enabled = canMoveUp,
+                        onClick = onMoveUp
+                    )
+                    RawtextFilledButton(
+                        "右移 →",
+                        CHelperTheme.colors.textSecondary,
+                        Modifier.weight(1f),
+                        enabled = canMoveDown,
+                        onClick = onMoveDown
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
-                RawtextFilledButton("删除", Color(0xFFD84315), Modifier.fillMaxWidth(), onClick = onRemove)
+                RawtextFilledButton(
+                    "删除",
+                    Color(0xFFD84315),
+                    Modifier.fillMaxWidth(),
+                    onClick = onRemove
+                )
             }
         }
     }
@@ -902,7 +975,12 @@ private fun QuickActionRow(
     onSimulator: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        RawtextFilledButton("复制 JSON", CHelperTheme.colors.mainColor, Modifier.weight(1.2f), onClick = onCopy)
+        RawtextFilledButton(
+            "复制 JSON",
+            CHelperTheme.colors.mainColor,
+            Modifier.weight(1.2f),
+            onClick = onCopy
+        )
         RawtextFilledButton("解析", Color(0xFF3367D6), Modifier.weight(1f), onClick = onDecode)
         RawtextFilledButton("模拟器", Color(0xFF00796B), Modifier.weight(1f), onClick = onSimulator)
     }
@@ -932,7 +1010,9 @@ private fun CompactColorChip(format: RawtextFormat, onClick: () -> Unit) {
         Text(
             text = format.name,
             style = TextStyle(
-                color = if (format.isLight) Color.Black.copy(alpha = 0.74f) else Color.White.copy(alpha = 0.84f),
+                color = if (format.isLight) Color.Black.copy(alpha = 0.74f) else Color.White.copy(
+                    alpha = 0.84f
+                ),
                 fontSize = 12.sp
             ),
             maxLines = 1
@@ -952,13 +1032,19 @@ private fun PreviewPanel(previewText: AnnotatedString, isPreviewEmpty: Boolean) 
                 .heightIn(min = 90.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black.copy(alpha = 0.78f))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(12.dp))
+                .border(
+                    BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                    RoundedCornerShape(12.dp)
+                )
                 .padding(12.dp)
         ) {
             if (isPreviewEmpty) {
                 Text(
                     text = "预览将显示在这里...",
-                    style = TextStyle(color = Color.White.copy(alpha = 0.46f), fontStyle = FontStyle.Italic)
+                    style = TextStyle(
+                        color = Color.White.copy(alpha = 0.46f),
+                        fontStyle = FontStyle.Italic
+                    )
                 )
             } else {
                 Text(
@@ -982,7 +1068,10 @@ private fun JsonOutputPanel(
     onCopy: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    SectionCard(title = "生成的 JSON", subtitle = "复制按钮已前置；这里只在需要排查时展开查看原文。") {
+    SectionCard(
+        title = "生成的 JSON",
+        subtitle = "复制按钮已前置；这里只在需要排查时展开查看原文。"
+    ) {
         if (validationMessages.isNotEmpty()) {
             Column(
                 modifier = Modifier
@@ -993,13 +1082,21 @@ private fun JsonOutputPanel(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 validationMessages.forEach { message ->
-                    Text(text = message, style = TextStyle(fontSize = 12.sp, color = Color(0xFFFFA000)))
+                    Text(
+                        text = message,
+                        style = TextStyle(fontSize = 12.sp, color = Color(0xFFFFA000))
+                    )
                 }
             }
             Spacer(Modifier.height(10.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RawtextFilledButton("复制", CHelperTheme.colors.mainColor, Modifier.weight(1f), onClick = onCopy)
+            RawtextFilledButton(
+                "复制",
+                CHelperTheme.colors.mainColor,
+                Modifier.weight(1f),
+                onClick = onCopy
+            )
             RawtextFilledButton(
                 text = if (expanded) "收起源码" else "查看源码",
                 color = CHelperTheme.colors.textSecondary,
@@ -1043,11 +1140,18 @@ private fun SectionCard(title: String, subtitle: String? = null, content: @Compo
     ) {
         Text(
             text = title,
-            style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = CHelperTheme.colors.textMain)
+            style = TextStyle(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = CHelperTheme.colors.textMain
+            )
         )
         subtitle?.let {
             Spacer(Modifier.height(4.dp))
-            Text(text = it, style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary))
+            Text(
+                text = it,
+                style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary)
+            )
         }
         Spacer(Modifier.height(12.dp))
         content()
@@ -1077,7 +1181,10 @@ private fun FormatChip(format: RawtextFormat, onClick: () -> Unit) {
             )
         )
         Spacer(Modifier.width(5.dp))
-        Text(text = format.name, style = TextStyle(color = CHelperTheme.colors.textMain, fontSize = 13.sp))
+        Text(
+            text = format.name,
+            style = TextStyle(color = CHelperTheme.colors.textMain, fontSize = 13.sp)
+        )
     }
 }
 
@@ -1107,7 +1214,9 @@ private fun ColorFormatButton(format: RawtextFormat, onClick: () -> Unit) {
         Text(
             text = format.name,
             style = TextStyle(
-                color = if (format.isLight) Color.Black.copy(alpha = 0.72f) else Color.White.copy(alpha = 0.82f),
+                color = if (format.isLight) Color.Black.copy(alpha = 0.72f) else Color.White.copy(
+                    alpha = 0.82f
+                ),
                 fontSize = 11.sp
             ),
             maxLines = 1,
@@ -1195,8 +1304,17 @@ private fun SimpleFeatureEditDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    RawtextFilledButton("取消", CHelperTheme.colors.textSecondary, Modifier.weight(1f), onClick = onDismiss)
-                    RawtextFilledButton("保存", CHelperTheme.colors.mainColor, Modifier.weight(1f)) {
+                    RawtextFilledButton(
+                        "取消",
+                        CHelperTheme.colors.textSecondary,
+                        Modifier.weight(1f),
+                        onClick = onDismiss
+                    )
+                    RawtextFilledButton(
+                        "保存",
+                        CHelperTheme.colors.mainColor,
+                        Modifier.weight(1f)
+                    ) {
                         segment.scoreName = scoreName
                         segment.scoreObjective = scoreObjective
                         segment.translateKey = translateKey
@@ -1239,7 +1357,10 @@ private fun RawtextDecodeDialog(
             cornerSize = 22.dp
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
-                Text(text = "解析 RawJSON", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    text = "解析 RawJSON",
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                )
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = "粘贴已有 {\"rawtext\":[...]}，会拆回文本段和功能段。",
@@ -1258,8 +1379,18 @@ private fun RawtextDecodeDialog(
                     RawtextFilledButton("粘贴", Color(0xFF3367D6), Modifier.weight(1f)) {
                         onPasteFromClipboard { input = it }
                     }
-                    RawtextFilledButton("取消", CHelperTheme.colors.textSecondary, Modifier.weight(1f), onClick = onDismiss)
-                    RawtextFilledButton("解析", CHelperTheme.colors.mainColor, Modifier.weight(1f), enabled = input.isNotBlank()) {
+                    RawtextFilledButton(
+                        "取消",
+                        CHelperTheme.colors.textSecondary,
+                        Modifier.weight(1f),
+                        onClick = onDismiss
+                    )
+                    RawtextFilledButton(
+                        "解析",
+                        CHelperTheme.colors.mainColor,
+                        Modifier.weight(1f),
+                        enabled = input.isNotBlank()
+                    ) {
                         onDecode(input)
                     }
                 }
@@ -1303,7 +1434,10 @@ private fun RawtextSimulatorDialog(
                     .verticalScroll(rememberScrollState())
                     .padding(18.dp)
             ) {
-                Text(text = "预览模拟器", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    text = "预览模拟器",
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                )
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = "这些值只影响本页预览，不会写进生成 JSON。",
@@ -1312,12 +1446,21 @@ private fun RawtextSimulatorDialog(
                 Spacer(Modifier.height(12.dp))
                 RawtextLabeledField("@p 显示名", mockPlayerP, onUpdateMockPlayerP, "Steve")
                 RawtextLabeledField("@r 显示名", mockPlayerR, onUpdateMockPlayerR, "Alex")
-                RawtextLabeledField("@a 显示名", mockPlayerA, onUpdateMockPlayerA, "Steve, Alex, ...")
+                RawtextLabeledField(
+                    "@a 显示名",
+                    mockPlayerA,
+                    onUpdateMockPlayerA,
+                    "Steve, Alex, ..."
+                )
                 RawtextLabeledField("@s 显示名", mockPlayerS, onUpdateMockPlayerS, "执行者")
                 RawtextLabeledField("计分板显示值", mockScore, onUpdateMockScore, "100")
                 RawtextLabeledField("翻译显示值", mockTranslate, onUpdateMockTranslate, "翻译文本")
                 RawtextLabeledField("条件显示值", mockCondition, onUpdateMockCondition, "条件内容")
-                RawtextFilledButton("保存设置", CHelperTheme.colors.mainColor, Modifier.fillMaxWidth()) {
+                RawtextFilledButton(
+                    "保存设置",
+                    CHelperTheme.colors.mainColor,
+                    Modifier.fillMaxWidth()
+                ) {
                     onPersistMockSettings()
                     onDismiss()
                 }
@@ -1344,7 +1487,10 @@ private fun RawtextSettingsDialog(
             cornerSize = 22.dp
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
-                Text(text = "设置", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    text = "设置",
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                )
                 Spacer(Modifier.height(14.dp))
                 RawtextSectionLabel("复制 JSON 格式")
                 Spacer(Modifier.height(8.dp))
@@ -1371,13 +1517,21 @@ private fun RawtextSettingsDialog(
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = "自动保存编辑内容，下次进来恢复。",
-                            style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary)
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                color = CHelperTheme.colors.textSecondary
+                            )
                         )
                     }
                     Switch(checked = autoSaveEnabled, onCheckedChange = { onSetAutoSave(it) })
                 }
                 Spacer(Modifier.height(18.dp))
-                RawtextFilledButton("完成", CHelperTheme.colors.mainColor, Modifier.fillMaxWidth(), onClick = onDismiss)
+                RawtextFilledButton(
+                    "完成",
+                    CHelperTheme.colors.mainColor,
+                    Modifier.fillMaxWidth(),
+                    onClick = onDismiss
+                )
             }
         }
     }
@@ -1386,17 +1540,33 @@ private fun RawtextSettingsDialog(
 @Composable
 private fun RawtextAboutDialog(onDismiss: () -> Unit) {
     CustomDialog(onDismissRequest = onDismiss) {
-        DialogContainer(modifier = Modifier.widthIn(max = 360.dp), backgroundNoTranslate = true, cornerSize = 20.dp) {
+        DialogContainer(
+            modifier = Modifier.widthIn(max = 360.dp),
+            backgroundNoTranslate = true,
+            cornerSize = 20.dp
+        ) {
             Column(modifier = Modifier.padding(18.dp)) {
-                Text(text = "关于", style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    text = "关于",
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                )
                 Spacer(Modifier.height(10.dp))
                 Text(
                     text = "Minecraft 基岩版 RawJSON 文本生成器。\n" +
-                        "交互机制参考开源项目 Akanyi/AkayiRawjsonweb，已适配 CHelper 的移动端与主题系统。",
-                    style = TextStyle(fontSize = 13.sp, color = CHelperTheme.colors.textMain, lineHeight = 20.sp)
+                            "交互机制参考开源项目 Akanyi/AkayiRawjsonweb，已适配 CHelper 的移动端与主题系统。",
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        color = CHelperTheme.colors.textMain,
+                        lineHeight = 20.sp
+                    )
                 )
                 Spacer(Modifier.height(16.dp))
-                RawtextFilledButton("知道了", CHelperTheme.colors.mainColor, Modifier.fillMaxWidth(), onClick = onDismiss)
+                RawtextFilledButton(
+                    "知道了",
+                    CHelperTheme.colors.mainColor,
+                    Modifier.fillMaxWidth(),
+                    onClick = onDismiss
+                )
             }
         }
     }
@@ -1405,18 +1575,37 @@ private fun RawtextAboutDialog(onDismiss: () -> Unit) {
 @Composable
 private fun AutoSavePromptDialog(onChoose: (Boolean) -> Unit) {
     CustomDialog(onDismissRequest = { onChoose(false) }) {
-        DialogContainer(modifier = Modifier.widthIn(max = 340.dp), backgroundNoTranslate = true, cornerSize = 20.dp) {
+        DialogContainer(
+            modifier = Modifier.widthIn(max = 340.dp),
+            backgroundNoTranslate = true,
+            cornerSize = 20.dp
+        ) {
             Column(modifier = Modifier.padding(18.dp)) {
-                Text(text = "开启动态保存？", style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold))
+                Text(
+                    text = "开启动态保存？",
+                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                )
                 Spacer(Modifier.height(10.dp))
                 Text(
                     text = "开启后编辑内容会自动保存到本地，下次进来不会丢失。可在设置里随时改。",
-                    style = TextStyle(fontSize = 13.sp, color = CHelperTheme.colors.textSecondary, lineHeight = 20.sp)
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        color = CHelperTheme.colors.textSecondary,
+                        lineHeight = 20.sp
+                    )
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    RawtextFilledButton("不用了", CHelperTheme.colors.textSecondary, Modifier.weight(1f)) { onChoose(false) }
-                    RawtextFilledButton("开启", CHelperTheme.colors.mainColor, Modifier.weight(1f)) { onChoose(true) }
+                    RawtextFilledButton(
+                        "不用了",
+                        CHelperTheme.colors.textSecondary,
+                        Modifier.weight(1f)
+                    ) { onChoose(false) }
+                    RawtextFilledButton(
+                        "开启",
+                        CHelperTheme.colors.mainColor,
+                        Modifier.weight(1f)
+                    ) { onChoose(true) }
                 }
             }
         }

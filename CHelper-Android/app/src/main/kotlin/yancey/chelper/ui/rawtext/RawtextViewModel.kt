@@ -37,13 +37,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -230,10 +227,12 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
 
         // 焦点落到光标所在的那段文本，光标移到该段开头对应位置
         val textSegmentsInserted = inserted.filter { it.type == RawtextSegmentType.Text }
-        val focus = textSegmentsInserted.getOrNull(newlinesBeforeCaret) ?: textSegmentsInserted.lastOrNull()
+        val focus =
+            textSegmentsInserted.getOrNull(newlinesBeforeCaret) ?: textSegmentsInserted.lastOrNull()
         focus?.let {
             val offset = parts.getOrNull(newlinesBeforeCaret)?.length ?: 0
-            it.textValue = it.textValue.copy(selection = TextRange(offset.coerceAtMost(it.textValue.text.length)))
+            it.textValue =
+                it.textValue.copy(selection = TextRange(offset.coerceAtMost(it.textValue.text.length)))
             activeTextSegmentId = it.id
         }
         normalize()
@@ -285,7 +284,10 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
             return addTextSegment()
         }
 
-        val feature = if (type == RawtextSegmentType.LineBreak) createLineBreakSegment() else createFeatureSegment(type)
+        val feature =
+            if (type == RawtextSegmentType.LineBreak) createLineBreakSegment() else createFeatureSegment(
+                type
+            )
         val activeSegment = activeTextSegmentId?.let { findSegment(it) }
         if (activeSegment?.type != RawtextSegmentType.Text) {
             insertAfter(activeTextSegmentId, feature)
@@ -321,9 +323,10 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
         if (index < 0) return
         segments.removeAt(index)
         // 焦点尽量落到相邻文本段
-        activeTextSegmentId = segments.getOrNull(index)?.takeIf { it.type == RawtextSegmentType.Text }?.id
-            ?: segments.getOrNull(index - 1)?.takeIf { it.type == RawtextSegmentType.Text }?.id
-                    ?: activeTextSegmentId
+        activeTextSegmentId =
+            segments.getOrNull(index)?.takeIf { it.type == RawtextSegmentType.Text }?.id
+                ?: segments.getOrNull(index - 1)?.takeIf { it.type == RawtextSegmentType.Text }?.id
+                        ?: activeTextSegmentId
         normalize()
         onContentChanged()
     }
@@ -452,12 +455,31 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
         val style = MinecraftTextStyle()
         for (segment in segments) {
             when (segment.type) {
-                RawtextSegmentType.Text -> appendFormattedMinecraftText(builder, segment.textValue.text, style)
+                RawtextSegmentType.Text -> appendFormattedMinecraftText(
+                    builder,
+                    segment.textValue.text,
+                    style
+                )
+
                 RawtextSegmentType.LineBreak -> builder.append("\n")
                 RawtextSegmentType.Score -> appendPreviewChip(builder, mockScore, Color(0xFFFF5555))
-                RawtextSegmentType.Selector -> appendPreviewChip(builder, mockSelectorName(segment.selector), Color(0xFF55FF55))
-                RawtextSegmentType.Translate -> appendPreviewChip(builder, mockTranslate.ifBlank { "[${segment.translateKey}]" }, Color(0xFFFFFF55))
-                RawtextSegmentType.Conditional -> appendPreviewChip(builder, mockCondition, Color(0xFFFF55FF))
+                RawtextSegmentType.Selector -> appendPreviewChip(
+                    builder,
+                    mockSelectorName(segment.selector),
+                    Color(0xFF55FF55)
+                )
+
+                RawtextSegmentType.Translate -> appendPreviewChip(
+                    builder,
+                    mockTranslate.ifBlank { "[${segment.translateKey}]" },
+                    Color(0xFFFFFF55)
+                )
+
+                RawtextSegmentType.Conditional -> appendPreviewChip(
+                    builder,
+                    mockCondition,
+                    Color(0xFFFF55FF)
+                )
             }
         }
         return builder.toAnnotatedString()
@@ -491,7 +513,11 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
                 RawtextSegmentType.Translate -> items.add(
                     buildJsonObject {
                         put("translate", segment.translateKey)
-                        put("with", parseJsonElementOrNull(segment.translateWithJson) ?: JsonArray(emptyList()))
+                        put(
+                            "with",
+                            parseJsonElementOrNull(segment.translateWithJson)
+                                ?: JsonArray(emptyList())
+                        )
                     }
                 )
 
@@ -558,7 +584,12 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
         }
 
         obj["selector"]?.jsonPrimitive?.contentOrNull?.let { selector ->
-            return listOf(createFeatureSegment(type = RawtextSegmentType.Selector, selector = selector))
+            return listOf(
+                createFeatureSegment(
+                    type = RawtextSegmentType.Selector,
+                    selector = selector
+                )
+            )
         }
 
         if (translate != null) {
@@ -596,7 +627,8 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
         }
         val condition = rawtext?.getOrNull(0) ?: buildJsonObject { put("selector", "@p") }
         val thenObject = rawtext?.getOrNull(1)
-        val thenRawtext = (thenObject as? JsonObject)?.get("rawtext") ?: thenObject ?: JsonArray(emptyList())
+        val thenRawtext =
+            (thenObject as? JsonObject)?.get("rawtext") ?: thenObject ?: JsonArray(emptyList())
         return createFeatureSegment(
             type = RawtextSegmentType.Conditional,
             conditionJson = encodeJson(condition, pretty = false),
@@ -768,9 +800,16 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
         val dtos = draftJson.decodeFromString<List<SegmentDto>>(draft)
         if (dtos.isEmpty()) return
         val restoredSegments = dtos.map { dto ->
-            val type = runCatching { RawtextSegmentType.valueOf(dto.type) }.getOrDefault(RawtextSegmentType.Text)
+            val type =
+                runCatching { RawtextSegmentType.valueOf(dto.type) }.getOrDefault(RawtextSegmentType.Text)
             when (type) {
-                RawtextSegmentType.Text -> createTextSegment(TextFieldValue(dto.text, TextRange(dto.text.length)))
+                RawtextSegmentType.Text -> createTextSegment(
+                    TextFieldValue(
+                        dto.text,
+                        TextRange(dto.text.length)
+                    )
+                )
+
                 RawtextSegmentType.LineBreak -> createLineBreakSegment()
                 else -> createFeatureSegment(
                     type = type,
@@ -791,7 +830,15 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun serializeMock(): String = draftJson.encodeToString(
-        MockDto(mockPlayerP, mockPlayerR, mockPlayerA, mockPlayerS, mockScore, mockTranslate, mockCondition)
+        MockDto(
+            mockPlayerP,
+            mockPlayerR,
+            mockPlayerA,
+            mockPlayerS,
+            mockScore,
+            mockTranslate,
+            mockCondition
+        )
     )
 
     private fun applyMockJson(mock: String) {
@@ -839,7 +886,9 @@ class RawtextViewModel(application: Application) : AndroidViewModel(application)
                 color = color,
                 fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
                 fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
-                textDecoration = if (decorations.isEmpty()) null else TextDecoration.combine(decorations)
+                textDecoration = if (decorations.isEmpty()) null else TextDecoration.combine(
+                    decorations
+                )
             )
         }
 

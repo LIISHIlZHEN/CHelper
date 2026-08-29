@@ -197,7 +197,10 @@ fun ConditionalEditorDialog(
                                 )
                                 Text(
                                     text = "填一个合法 JSON 对象作为条件；非法时生成区会兜底。",
-                                    style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
+                                    style = TextStyle(
+                                        fontSize = 11.sp,
+                                        color = CHelperTheme.colors.textSecondary
+                                    )
                                 )
                             }
                         }
@@ -224,7 +227,10 @@ fun ConditionalEditorDialog(
                         )
                         Text(
                             text = "条件成立时显示的 rawtext 数组。",
-                            style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
+                            style = TextStyle(
+                                fontSize = 11.sp,
+                                color = CHelperTheme.colors.textSecondary
+                            )
                         )
                     }
                 }

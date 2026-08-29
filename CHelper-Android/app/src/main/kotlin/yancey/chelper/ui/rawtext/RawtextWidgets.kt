@@ -186,7 +186,10 @@ fun RawtextSmallIconButton(
             .padding(horizontal = 10.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = text, style = TextStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold))
+        Text(
+            text = text,
+            style = TextStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        )
     }
 }
 

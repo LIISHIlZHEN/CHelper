@@ -261,7 +261,11 @@ class CommandContext internal constructor(
          * @param which   第几个补全提示，从0开始
          */
         @JvmStatic
-        private external fun applySuggestion0(pointer: Long, index: Int, which: Int): ClickSuggestionResult?
+        private external fun applySuggestion0(
+            pointer: Long,
+            index: Int,
+            which: Int
+        ): ClickSuggestionResult?
 
         /**
          * 调用c++获取文本颜色

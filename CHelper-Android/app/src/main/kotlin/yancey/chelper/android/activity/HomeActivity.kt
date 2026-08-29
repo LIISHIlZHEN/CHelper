@@ -43,9 +43,9 @@ import kotlinx.coroutines.withContext
 import yancey.chelper.android.util.MonitorUtil
 import yancey.chelper.android.window.FloatingWindowManager
 import yancey.chelper.data.BackgroundStore
-import yancey.chelper.ui.NavHost
 import yancey.chelper.ui.CommandLabDeepLink
 import yancey.chelper.ui.CommandLabDeepLinkParser
+import yancey.chelper.ui.NavHost
 import yancey.chelper.ui.openCommandLabDeepLink
 import java.io.BufferedInputStream
 import java.io.IOException

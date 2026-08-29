@@ -185,7 +185,10 @@ class LocalCommandLabDataStore(private val context: Context) {
         }
     }
 
-    suspend fun updateLocalLibraryFunction(localEntryId: String, function: LibraryFunction): Boolean {
+    suspend fun updateLocalLibraryFunction(
+        localEntryId: String,
+        function: LibraryFunction
+    ): Boolean {
         var updated = false
         context.localLibraryDataStore.updateData { data ->
             val newFunctions = data.functions.map { existing ->
@@ -287,7 +290,8 @@ internal fun LibraryFunction.withLocalSyncResult(
 class LocalLibraryStableIdMigration : DataMigration<LocalLibraryData> {
     override suspend fun shouldMigrate(currentData: LocalLibraryData): Boolean {
         val ids = currentData.functions.map { it.localEntryId }
-        return ids.any { it.isNullOrBlank() } || ids.filterNotNull().distinct().size != ids.filterNotNull().size
+        return ids.any { it.isNullOrBlank() } || ids.filterNotNull()
+            .distinct().size != ids.filterNotNull().size
     }
 
     override suspend fun migrate(currentData: LocalLibraryData): LocalLibraryData {

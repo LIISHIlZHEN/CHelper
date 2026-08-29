@@ -20,7 +20,6 @@ package yancey.chelper.ui.rawtext
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,7 +98,8 @@ fun SelectorEditorDialog(
         SelectorParser.SIMPLE_FIELDS.forEach { key ->
             fields[key]?.takeIf { it.isNotBlank() }?.let { params[key] = it }
         }
-        HasitemCondition.buildValue(hasitems).takeIf { it.isNotBlank() }?.let { params["hasitem"] = it }
+        HasitemCondition.buildValue(hasitems).takeIf { it.isNotBlank() }
+            ?.let { params["hasitem"] = it }
         ScoreCondition.buildValue(scores).takeIf { it.isNotBlank() }?.let { params["scores"] = it }
         return SelectorParser.build(base, params)
     }
@@ -188,7 +187,10 @@ fun SelectorEditorDialog(
                         )
                         Text(
                             text = "直接输入完整选择器字符串，切回高级模式会自动拆解。",
-                            style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary)
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                color = CHelperTheme.colors.textSecondary
+                            )
                         )
                     }
                 }
@@ -317,7 +319,11 @@ private fun AdvancedSelectorForm(
             onValueChange = { fields["family"] = it },
             hint = "monster",
             trailing = {
-                RawtextSmallIconButton(text = "查", color = CHelperTheme.colors.mainColor, onClick = onOpenFamilyPicker)
+                RawtextSmallIconButton(
+                    text = "查",
+                    color = CHelperTheme.colors.mainColor,
+                    onClick = onOpenFamilyPicker
+                )
             }
         )
     }
@@ -490,7 +496,11 @@ private fun HasitemConditionItem(
             onValueChange = { onChange(condition.copy(item = it)) },
             hint = "minecraft:apple",
             trailing = {
-                RawtextSmallIconButton(text = "查", color = CHelperTheme.colors.mainColor, onClick = onOpenItemPicker)
+                RawtextSmallIconButton(
+                    text = "查",
+                    color = CHelperTheme.colors.mainColor,
+                    onClick = onOpenItemPicker
+                )
             }
         )
         RawtextLabeledField(
@@ -511,7 +521,11 @@ private fun HasitemConditionItem(
             onValueChange = { onChange(condition.copy(location = it)) },
             hint = "slot.hotbar",
             trailing = {
-                RawtextSmallIconButton(text = "查", color = CHelperTheme.colors.mainColor, onClick = onOpenSlotPicker)
+                RawtextSmallIconButton(
+                    text = "查",
+                    color = CHelperTheme.colors.mainColor,
+                    onClick = onOpenSlotPicker
+                )
             }
         )
         RawtextLabeledField(

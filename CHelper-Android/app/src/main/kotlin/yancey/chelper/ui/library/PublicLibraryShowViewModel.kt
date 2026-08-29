@@ -202,7 +202,8 @@ class PublicLibraryShowViewModel : ViewModel() {
                 if (result.isSuccess() && result.data != null) {
                     isFavorited = result.data!!.isFavorited == true
                     library = library.copy(isFavorited = isFavorited)
-                    actionMessage = result.message ?: if (isFavorited) "已加入收藏夹" else "已取消收藏"
+                    actionMessage =
+                        result.message ?: if (isFavorited) "已加入收藏夹" else "已取消收藏"
                 } else {
                     actionMessage = result.message ?: "收藏操作失败"
                 }

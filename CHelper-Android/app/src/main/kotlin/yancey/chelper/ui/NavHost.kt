@@ -297,7 +297,10 @@ fun NavHost(
         }
         composable<ActivityCenterScreenKey> { backStackEntry ->
             val args = backStackEntry.toRoute<ActivityCenterScreenKey>()
-            ActivityCenterScreen(navController = navController, initialSection = args.initialSection)
+            ActivityCenterScreen(
+                navController = navController,
+                initialSection = args.initialSection
+            )
         }
     }
     if (isShowSavingBackgroundDialog.value) {
@@ -429,7 +432,10 @@ fun FloatingWindowNavHost(
         }
         composable<ActivityCenterScreenKey> { backStackEntry ->
             val args = backStackEntry.toRoute<ActivityCenterScreenKey>()
-            ActivityCenterScreen(navController = navController, initialSection = args.initialSection)
+            ActivityCenterScreen(
+                navController = navController,
+                initialSection = args.initialSection
+            )
         }
     }
 }

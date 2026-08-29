@@ -10,8 +10,8 @@
 
 package yancey.chelper.ui
 
-import androidx.navigation.NavHostController
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
 import androidx.navigation.toRoute
 import java.net.URI
 import java.net.URLDecoder
@@ -44,7 +44,10 @@ object CommandLabDeepLinkParser {
                 queryImportToLocal(query)
             )
 
-            scheme in setOf("http", "https") && host in setOf("abyssous.site", "www.abyssous.site") -> {
+            scheme in setOf("http", "https") && host in setOf(
+                "abyssous.site",
+                "www.abyssous.site"
+            ) -> {
                 if (segments.firstOrNull() != "app") return null
                 parseCommandLabPath(
                     segments.drop(1),

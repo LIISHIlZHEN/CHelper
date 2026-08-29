@@ -52,7 +52,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -216,7 +215,8 @@ fun PublicLibraryShowScreen(
             }
             runCatching {
                 context.startActivity(
-                    Intent.createChooser(shareIntent, "分享命令库").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    Intent.createChooser(shareIntent, "分享命令库")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 )
             }
             Toaster.show("分享链接已复制")
@@ -517,7 +517,11 @@ fun PublicLibraryShowScreen(
                                             .padding(top = 4.dp)
                                             .clip(RoundedCornerShape(6.dp))
                                             .clickable {
-                                                viewModel.library.id?.let { viewModel.toggleFavorite(it) }
+                                                viewModel.library.id?.let {
+                                                    viewModel.toggleFavorite(
+                                                        it
+                                                    )
+                                                }
                                             }
                                             .padding(vertical = 4.dp, horizontal = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically

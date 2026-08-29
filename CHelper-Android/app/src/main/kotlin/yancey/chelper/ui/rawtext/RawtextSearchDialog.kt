@@ -91,7 +91,11 @@ fun RawtextSearchDialog(
                         modifier = Modifier.weight(1f),
                         style = TextStyle(fontSize = 19.sp, fontWeight = FontWeight.Bold)
                     )
-                    RawtextSmallIconButton(text = "关闭", color = CHelperTheme.colors.textSecondary, onClick = onDismiss)
+                    RawtextSmallIconButton(
+                        text = "关闭",
+                        color = CHelperTheme.colors.textSecondary,
+                        onClick = onDismiss
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
                 BasicTextField(
@@ -109,7 +113,10 @@ fun RawtextSearchDialog(
                             if (query.isEmpty()) {
                                 Text(
                                     text = "搜索 ID 或名称…",
-                                    style = TextStyle(color = CHelperTheme.colors.textHint, fontSize = 14.sp)
+                                    style = TextStyle(
+                                        color = CHelperTheme.colors.textHint,
+                                        fontSize = 14.sp
+                                    )
                                 )
                             }
                             inner()
@@ -143,7 +150,10 @@ fun RawtextSearchDialog(
                             ) {
                                 Text(
                                     text = entry.name,
-                                    style = TextStyle(fontSize = 14.sp, color = CHelperTheme.colors.textMain)
+                                    style = TextStyle(
+                                        fontSize = 14.sp,
+                                        color = CHelperTheme.colors.textMain
+                                    )
                                 )
                                 Text(
                                     text = entry.id,

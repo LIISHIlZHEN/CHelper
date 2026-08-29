@@ -44,7 +44,8 @@ class AuthInterceptor private constructor() : Interceptor {
                 .header("X-Client", "chelper-android")
                 .header(
                     "User-Agent",
-                    request.header("User-Agent")?.takeIf { it.contains("CHelper", ignoreCase = true) }
+                    request.header("User-Agent")
+                        ?.takeIf { it.contains("CHelper", ignoreCase = true) }
                         ?: "CHelper-Android"
                 )
 

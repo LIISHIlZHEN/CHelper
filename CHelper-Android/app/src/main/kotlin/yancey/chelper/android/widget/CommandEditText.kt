@@ -113,7 +113,8 @@ class CommandEditText : AppCompatEditText {
         }
         setPadding(padding, padding, padding, padding)
         isVerticalScrollBarEnabled = enabled
-        overScrollMode = if (enabled) View.OVER_SCROLL_IF_CONTENT_SCROLLS else View.OVER_SCROLL_NEVER
+        overScrollMode =
+            if (enabled) View.OVER_SCROLL_IF_CONTENT_SCROLLS else View.OVER_SCROLL_NEVER
         requestLayout()
         post {
             bringPointIntoView(selectionStart.coerceAtLeast(0))

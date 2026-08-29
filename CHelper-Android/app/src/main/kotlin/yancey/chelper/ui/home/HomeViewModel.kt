@@ -28,8 +28,8 @@ import androidx.lifecycle.viewModelScope
 import com.hjq.device.compat.DeviceOs
 import com.hjq.permissions.XXPermissions
 import com.hjq.permissions.permission.PermissionLists
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking

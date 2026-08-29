@@ -22,7 +22,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.int
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -50,7 +49,8 @@ data class ConditionEditorState(
 
         fun fromJson(conditionJson: String): ConditionEditorState {
             val state = ConditionEditorState()
-            val obj = runCatching { parser.parseToJsonElement(conditionJson).jsonObject }.getOrNull()
+            val obj =
+                runCatching { parser.parseToJsonElement(conditionJson).jsonObject }.getOrNull()
             if (obj == null) {
                 state.type = ConditionType.RawJson
                 state.rawJson = conditionJson
@@ -61,7 +61,8 @@ data class ConditionEditorState(
                     state.type = ConditionType.Score
                     val score = obj["score"]?.jsonObject
                     state.scoreName = score?.get("name")?.jsonPrimitive?.contentOrNull ?: "@p"
-                    state.scoreObjective = score?.get("objective")?.jsonPrimitive?.contentOrNull ?: "money"
+                    state.scoreObjective =
+                        score?.get("objective")?.jsonPrimitive?.contentOrNull ?: "money"
                     state.scoreValue = formatScoreValue(score)
                 }
 

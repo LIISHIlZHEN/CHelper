@@ -29,15 +29,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,7 +74,8 @@ fun LocalLibraryShowScreen(
 ) {
     val context = LocalContext.current
     val settingsDataStore = remember(context) { SettingsDataStore(context) }
-    val ambiguousDefault by settingsDataStore.ambiguousLineDefault().collectAsState(initial = "comment")
+    val ambiguousDefault by settingsDataStore.ambiguousLineDefault()
+        .collectAsState(initial = "comment")
     val hideMetadata by settingsDataStore.isHideMetadataPreview().collectAsState(initial = false)
     val resolvedSource = remember(library) { library?.toFullLocalMcd().orEmpty() }
     var showMenu by remember { mutableStateOf(false) }
@@ -171,10 +171,12 @@ fun LocalLibraryShowScreen(
                     "edit" -> onEdit?.invoke()
                     "line_copy" -> showLineCopy = true
                     "copy_all" -> {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clipboard =
+                            context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("MCD", resolvedSource))
                         Toast.makeText(context, "已复制全部 MCD 源码", Toast.LENGTH_SHORT).show()
                     }
+
                     "toggle_view" -> showRawSource = !showRawSource
                 }
             }

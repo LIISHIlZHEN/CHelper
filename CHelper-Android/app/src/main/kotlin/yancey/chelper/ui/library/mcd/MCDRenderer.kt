@@ -52,8 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.yield
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import yancey.chelper.R
 import yancey.chelper.android.util.MonitorUtil
 import yancey.chelper.core.CHelperCore
@@ -118,6 +118,7 @@ sealed class ChainItem {
         val command: String,
         var syntaxHighlightTokens: IntArray? = null
     ) : ChainItem()
+
     data class Block(val block: MCDBlock) : ChainItem()
 }
 
@@ -212,14 +213,20 @@ fun parseMCDStructure(
                             lastHeaderMetaIndex = metaInfo.lastIndex
                         }
                     }
+
                     tline.startsWith("#") -> {
                         rootComments.add(tline.substring(1).trim())
                         lastHeaderMetaIndex = null
                     }
+
                     tline.startsWith("//") -> lastHeaderMetaIndex = null
                     else -> {
                         val metaIndex = lastHeaderMetaIndex
-                        if (metaIndex != null && metaInfo[metaIndex].key.equals("note", ignoreCase = true)) {
+                        if (metaIndex != null && metaInfo[metaIndex].key.equals(
+                                "note",
+                                ignoreCase = true
+                            )
+                        ) {
                             val note = metaInfo[metaIndex]
                             metaInfo[metaIndex] = note.copy(value = "${note.value}\n$tline")
                         } else {
@@ -418,15 +425,19 @@ private fun applyMcdHighlightSync(
                         is ChainItem.Block -> {
                             val cmd = item.block.command
                             if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) continue
-                            core.createContext(cmd).use { item.block.syntaxHighlightTokens = it.syntaxToken }
+                            core.createContext(cmd)
+                                .use { item.block.syntaxHighlightTokens = it.syntaxToken }
                             highlighted++
                         }
+
                         is ChainItem.RawCommand -> {
                             val cmd = item.command
                             if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) continue
-                            core.createContext(cmd).use { item.syntaxHighlightTokens = it.syntaxToken }
+                            core.createContext(cmd)
+                                .use { item.syntaxHighlightTokens = it.syntaxToken }
                             highlighted++
                         }
+
                         else -> {}
                     }
                 }
@@ -472,20 +483,24 @@ private suspend fun applyMcdHighlightItemsAsync(
         for (item in items) {
             if (highlighted >= MCD_HIGHLIGHT_MAX_COMMANDS) break
             val applied = synchronized(MCDHighlightCoreCache) {
-                val core = MCDHighlightCoreCache.get(context, cpackPath) ?: return@synchronized false
+                val core =
+                    MCDHighlightCoreCache.get(context, cpackPath) ?: return@synchronized false
                 when (item) {
                     is ChainItem.Block -> {
                         val cmd = item.block.command
                         if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) return@synchronized false
-                        core.createContext(cmd).use { item.block.syntaxHighlightTokens = it.syntaxToken }
+                        core.createContext(cmd)
+                            .use { item.block.syntaxHighlightTokens = it.syntaxToken }
                         true
                     }
+
                     is ChainItem.RawCommand -> {
                         val cmd = item.command
                         if (cmd.isEmpty() || cmd.length > MCD_HIGHLIGHT_MAX_CMD_LEN) return@synchronized false
                         core.createContext(cmd).use { item.syntaxHighlightTokens = it.syntaxToken }
                         true
                     }
+
                     else -> false
                 }
             }
@@ -521,8 +536,8 @@ private sealed class MCDRenderRow {
 private fun flattenParsedMCD(parsed: ParsedMCD, showMetadata: Boolean): List<MCDRenderRow> {
     val rows = ArrayList<MCDRenderRow>(
         parsed.rootComments.size +
-            parsed.chains.sumOf { it.items.size + 2 } +
-            if (showMetadata && parsed.metaInfo.isNotEmpty()) 1 else 0
+                parsed.chains.sumOf { it.items.size + 2 } +
+                if (showMetadata && parsed.metaInfo.isNotEmpty()) 1 else 0
     )
     if (showMetadata && parsed.metaInfo.isNotEmpty()) {
         rows.add(MCDRenderRow.Meta(parsed.metaInfo))
@@ -560,8 +575,10 @@ fun MCDContentView(
 ) {
     val context = LocalContext.current
     val settingsDataStore = remember(context) { SettingsDataStore(context) }
-    val cpackBranch by settingsDataStore.cpackBranch().collectAsState(initial = "release-experiment")
-    val isEnableMcdHighlight by settingsDataStore.isEnableMcdHighlight().collectAsState(initial = true)
+    val cpackBranch by settingsDataStore.cpackBranch()
+        .collectAsState(initial = "release-experiment")
+    val isEnableMcdHighlight by settingsDataStore.isEnableMcdHighlight()
+        .collectAsState(initial = true)
 
     // 1) 只做结构解析，尽快让 UI 出来
     val parsed by produceState<ParsedMCD?>(initialValue = null, content, ambiguousDefault) {
@@ -611,7 +628,11 @@ fun MCDContentView(
 
     // 结构先出 UI；之后每批延迟显示的行单独进入高亮队列。
     // 不能只高亮整库的前 64 条，否则首屏后的延迟条目永远没有 token。
-    var highlightRevision by remember(content, ambiguousDefault, showMetadata) { mutableIntStateOf(0) }
+    var highlightRevision by remember(
+        content,
+        ambiguousDefault,
+        showMetadata
+    ) { mutableIntStateOf(0) }
     LaunchedEffect(allRows, cpackBranch, isEnableMcdHighlight) {
         if (!isEnableMcdHighlight || cpackBranch.isNullOrEmpty()) return@LaunchedEffect
         var processedRowCount = 0
@@ -652,13 +673,16 @@ fun MCDContentView(
                     MetaSection(row.items)
                     Spacer(Modifier.height(8.dp))
                 }
+
                 is MCDRenderRow.RootComment -> {
                     CommentItem(row.text)
                     Spacer(Modifier.height(4.dp))
                 }
+
                 is MCDRenderRow.Header -> {
                     ChainHeader(row.name)
                 }
+
                 is MCDRenderRow.Item -> {
                     when (val item = row.item) {
                         is ChainItem.Comment -> CommentItem(item.text)
@@ -667,10 +691,12 @@ fun MCDContentView(
                             item.syntaxHighlightTokens,
                             highlightRevision
                         )
+
                         is ChainItem.Block -> BlockItem(item.block, highlightRevision)
                     }
                     Spacer(Modifier.height(4.dp))
                 }
+
                 is MCDRenderRow.ChainGap -> {
                     Spacer(Modifier.height(12.dp))
                 }
@@ -905,7 +931,7 @@ fun highlightCommand(command: String, tokens: IntArray?, isDark: Boolean): Annot
     }
     val theme = if (isDark) Theme.THEME_NIGHT else Theme.THEME_DAY
     val normalColor = if (isDark) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
-    
+
     return buildAnnotatedString {
         append(command)
         var lastIndex = 0

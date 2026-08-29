@@ -212,7 +212,13 @@ class LocalLibraryEditViewModel : ViewModel() {
         add(LocalLibraryTemplate("注释 + 命令", "# 说明这条命令的用途\nsay hello"))
         if (useV2) {
             add(LocalLibraryTemplate("脉冲命令方块", "> I\nsay hello", requiresV2 = true))
-            add(LocalLibraryTemplate("连锁命令链", "> I\nsay start\n> C!\nsay next", requiresV2 = true))
+            add(
+                LocalLibraryTemplate(
+                    "连锁命令链",
+                    "> I\nsay start\n> C!\nsay next",
+                    requiresV2 = true
+                )
+            )
             add(LocalLibraryTemplate("循环执行", "> R!\nsay loop", requiresV2 = true))
             add(LocalLibraryTemplate("聊天文本", "> H\n这是一段聊天文本", requiresV2 = true))
         }
@@ -221,7 +227,13 @@ class LocalLibraryEditViewModel : ViewModel() {
     fun validationError(): String? {
         if (name.text.isBlank()) return "名称不能为空"
         if (commands.text.isBlank()) return "执行脚本不能为空"
-        if (sequenceOf(name.text, version.text, description.text, tags.text).any { '\n' in it || '\r' in it }) {
+        if (sequenceOf(
+                name.text,
+                version.text,
+                description.text,
+                tags.text
+            ).any { '\n' in it || '\r' in it }
+        ) {
             return "名称、版本、描述和标签不能包含换行"
         }
         val body = commands.text.toString()

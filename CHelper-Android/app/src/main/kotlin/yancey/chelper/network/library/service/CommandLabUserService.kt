@@ -425,7 +425,7 @@ interface CommandLabUserService {
         var uuid: String? = null
     )
 
-/** 收藏或取消收藏公开命令库。后端按 UUID 绑定，多端共享。 */
+    /** 收藏或取消收藏公开命令库。后端按 UUID 绑定，多端共享。 */
     @POST("library/{id}/favorite")
     suspend fun toggleFavorite(
         @Path("id") id: Int

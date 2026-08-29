@@ -454,7 +454,8 @@ class LoongFlowWindowManager(
         val bubbleView: View
 
         if (isImportMini) {
-            val maxAllowedWidth = (metrics.widthPx - (12 * density).toInt()).coerceAtLeast((160 * density).toInt())
+            val maxAllowedWidth =
+                (metrics.widthPx - (12 * density).toInt()).coerceAtLeast((160 * density).toInt())
             val minDesiredWidth = (236 * density).toInt().coerceAtMost(maxAllowedWidth)
             bubbleWidth = (318 * density).toInt()
                 .coerceAtMost((metrics.widthPx * 0.78f).toInt())
@@ -563,7 +564,12 @@ class LoongFlowWindowManager(
         val root = LinearLayout(application).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding((8 * density).toInt(), (7 * density).toInt(), (8 * density).toInt(), (7 * density).toInt())
+            setPadding(
+                (8 * density).toInt(),
+                (7 * density).toInt(),
+                (8 * density).toInt(),
+                (7 * density).toInt()
+            )
             layoutParams = FrameLayout.LayoutParams(width, height)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 elevation = 8 * density
@@ -591,9 +597,10 @@ class LoongFlowWindowManager(
         val textColumn = LinearLayout(application).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
-                leftMargin = (8 * density).toInt()
-            }
+            layoutParams =
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                    leftMargin = (8 * density).toInt()
+                }
         }
         val title = TextView(application).apply {
             textSize = 13.5f
@@ -601,14 +608,20 @@ class LoongFlowWindowManager(
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
         val subtitle = TextView(application).apply {
             textSize = 11f
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
                 topMargin = (2 * density).toInt()
             }
         }
@@ -666,19 +679,21 @@ class LoongFlowWindowManager(
         return root
     }
 
-    private fun createImportMiniActionButton(text: String, density: Float): TextView = TextView(application).apply {
-        this.text = text
-        gravity = Gravity.CENTER
-        textSize = 11f
-        typeface = Typeface.DEFAULT_BOLD
-        maxLines = 1
-        ellipsize = TextUtils.TruncateAt.END
-        includeFontPadding = false
-        isClickable = true
-        layoutParams = LinearLayout.LayoutParams((47 * density).toInt(), (24 * density).toInt()).apply {
-            leftMargin = (5 * density).toInt()
+    private fun createImportMiniActionButton(text: String, density: Float): TextView =
+        TextView(application).apply {
+            this.text = text
+            gravity = Gravity.CENTER
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            includeFontPadding = false
+            isClickable = true
+            layoutParams =
+                LinearLayout.LayoutParams((47 * density).toInt(), (24 * density).toInt()).apply {
+                    leftMargin = (5 * density).toInt()
+                }
         }
-    }
 
     private fun installImportMiniBubbleGesture(view: View) {
         view.isClickable = true
@@ -698,7 +713,11 @@ class LoongFlowWindowManager(
         val hasNext = vm.nextCommand()
         val total = vm.selectedCommands.size
         if (hasNext) {
-            Toast.makeText(application, "已复制 (${vm.currentCopyIndex + 1}/$total)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                application,
+                "已复制 (${vm.currentCopyIndex + 1}/$total)",
+                Toast.LENGTH_SHORT
+            ).show()
         } else {
             Toast.makeText(application, "全部导入完成", Toast.LENGTH_SHORT).show()
         }
@@ -714,7 +733,11 @@ class LoongFlowWindowManager(
         }
         vm.prevCommand()
         val total = vm.selectedCommands.size
-        Toast.makeText(application, "已复制 (${vm.currentCopyIndex + 1}/$total)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            application,
+            "已复制 (${vm.currentCopyIndex + 1}/$total)",
+            Toast.LENGTH_SHORT
+        ).show()
         vm.toastMessage = null
         updateImportMiniBubbleContent()
     }
@@ -730,11 +753,38 @@ class LoongFlowWindowManager(
         val expandButton = importMiniExpandButton ?: return
         val state = buildImportMiniBubbleState()
         val density = currentScreenMetrics().density
-        val surfaceColor = if (theme == CHelperTheme.Theme.Dark) Color.argb(242, 30, 32, 36) else Color.argb(248, 255, 255, 255)
-        val titleColor = if (theme == CHelperTheme.Theme.Dark) Color.rgb(246, 247, 250) else Color.rgb(28, 32, 38)
-        val subtitleColor = if (theme == CHelperTheme.Theme.Dark) Color.argb(210, 226, 230, 238) else Color.argb(190, 44, 50, 60)
-        val mutedButtonBg = if (theme == CHelperTheme.Theme.Dark) Color.argb(34, 255, 255, 255) else Color.argb(24, 20, 28, 38)
-        val mutedButtonText = if (theme == CHelperTheme.Theme.Dark) Color.argb(220, 238, 240, 246) else Color.argb(210, 42, 48, 58)
+        val surfaceColor =
+            if (theme == CHelperTheme.Theme.Dark) Color.argb(242, 30, 32, 36) else Color.argb(
+                248,
+                255,
+                255,
+                255
+            )
+        val titleColor =
+            if (theme == CHelperTheme.Theme.Dark) Color.rgb(246, 247, 250) else Color.rgb(
+                28,
+                32,
+                38
+            )
+        val subtitleColor = if (theme == CHelperTheme.Theme.Dark) Color.argb(
+            210,
+            226,
+            230,
+            238
+        ) else Color.argb(190, 44, 50, 60)
+        val mutedButtonBg =
+            if (theme == CHelperTheme.Theme.Dark) Color.argb(34, 255, 255, 255) else Color.argb(
+                24,
+                20,
+                28,
+                38
+            )
+        val mutedButtonText = if (theme == CHelperTheme.Theme.Dark) Color.argb(
+            220,
+            238,
+            240,
+            246
+        ) else Color.argb(210, 42, 48, 58)
         root.background = roundedRect(
             color = surfaceColor,
             radius = 18 * density,
@@ -793,7 +843,15 @@ class LoongFlowWindowManager(
     }
 
     private fun buildImportMiniBubbleState(): ImportMiniBubbleState {
-        val vm = viewModel ?: return ImportMiniBubbleState("?", "无导入任务", "请重新打开游龙", "--", "下一条", false, Color.rgb(96, 125, 139))
+        val vm = viewModel ?: return ImportMiniBubbleState(
+            "?",
+            "无导入任务",
+            "请重新打开游龙",
+            "--",
+            "下一条",
+            false,
+            Color.rgb(96, 125, 139)
+        )
         val total = vm.selectedCommands.size
         if (vm.isImportComplete) {
             return ImportMiniBubbleState(
@@ -807,7 +865,15 @@ class LoongFlowWindowManager(
             )
         }
         val ctx = vm.currentImportCommand
-            ?: return ImportMiniBubbleState("空", "没有可导入命令", "回到详情重新选择", "0/0", "下一条", false, Color.rgb(96, 125, 139))
+            ?: return ImportMiniBubbleState(
+                "空",
+                "没有可导入命令",
+                "回到详情重新选择",
+                "0/0",
+                "下一条",
+                false,
+                Color.rgb(96, 125, 139)
+            )
         val block = ctx.blockData
         if (block == null) {
             return ImportMiniBubbleState(
@@ -821,7 +887,8 @@ class LoongFlowWindowManager(
             )
         }
 
-        val baseColor = if (theme == CHelperTheme.Theme.Dark) block.type.darkColor else block.type.lightColor
+        val baseColor =
+            if (theme == CHelperTheme.Theme.Dark) block.type.darkColor else block.type.lightColor
         val parts = mutableListOf<String>()
         parts += typeName(block.type)
         if (block.type != BlockType.CHAT) {
@@ -859,7 +926,12 @@ class LoongFlowWindowManager(
         BlockType.CHAT -> "手"
     }
 
-    private fun roundedRect(color: Int, radius: Float, strokeColor: Int? = null, strokeWidth: Int = 0): GradientDrawable =
+    private fun roundedRect(
+        color: Int,
+        radius: Float,
+        strokeColor: Int? = null,
+        strokeWidth: Int = 0
+    ): GradientDrawable =
         GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             setColor(color)

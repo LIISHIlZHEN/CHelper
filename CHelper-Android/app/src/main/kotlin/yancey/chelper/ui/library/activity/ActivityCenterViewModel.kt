@@ -67,11 +67,16 @@ class ActivityCenterViewModel : ViewModel() {
             try {
                 val payload = withContext(Dispatchers.IO) {
                     coroutineScope {
-                        val configRequest = async { ServiceManager.COMMAND_LAB_USER_SERVICE.getActivityConfig() }
-                        val summaryRequest = async { ServiceManager.COMMAND_LAB_USER_SERVICE.getMyActivity() }
-                        val ledgerRequest = async { ServiceManager.COMMAND_LAB_USER_SERVICE.getActivityLedger() }
-                        val redemptionRequest = async { ServiceManager.COMMAND_LAB_USER_SERVICE.getActivityRedemptions() }
-                        val tierRequest = async { ServiceManager.COMMAND_LAB_USER_SERVICE.getMyTierDetails() }
+                        val configRequest =
+                            async { ServiceManager.COMMAND_LAB_USER_SERVICE.getActivityConfig() }
+                        val summaryRequest =
+                            async { ServiceManager.COMMAND_LAB_USER_SERVICE.getMyActivity() }
+                        val ledgerRequest =
+                            async { ServiceManager.COMMAND_LAB_USER_SERVICE.getActivityLedger() }
+                        val redemptionRequest =
+                            async { ServiceManager.COMMAND_LAB_USER_SERVICE.getActivityRedemptions() }
+                        val tierRequest =
+                            async { ServiceManager.COMMAND_LAB_USER_SERVICE.getMyTierDetails() }
                         ActivityPayload(
                             configRequest.await(),
                             summaryRequest.await(),

@@ -106,7 +106,7 @@ class FavoriteLibraryListViewModel : ViewModel() {
         var changed = false
         for (bookmark in legacy) {
             val alreadyRemote = bookmark.uuid?.let(remoteUuids::contains) == true ||
-                bookmark.id?.let(remoteIds::contains) == true
+                    bookmark.id?.let(remoteIds::contains) == true
             if (alreadyRemote) continue
 
             val id = bookmark.id ?: return@withContext false

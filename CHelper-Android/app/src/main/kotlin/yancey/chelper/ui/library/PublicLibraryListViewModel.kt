@@ -228,8 +228,10 @@ class PublicLibraryListViewModel : ViewModel() {
                 if (result.isSuccess() && result.data != null) {
                     val favorited = result.data!!.isFavorited == true
                     val index = libraries.indexOfFirst { it.id == id }
-                    if (index >= 0) libraries[index] = libraries[index].copy(isFavorited = favorited)
-                    actionMessage = result.message ?: if (favorited) "已加入收藏夹" else "已取消收藏"
+                    if (index >= 0) libraries[index] =
+                        libraries[index].copy(isFavorited = favorited)
+                    actionMessage =
+                        result.message ?: if (favorited) "已加入收藏夹" else "已取消收藏"
                 } else {
                     actionMessage = result.message ?: "收藏操作失败"
                 }

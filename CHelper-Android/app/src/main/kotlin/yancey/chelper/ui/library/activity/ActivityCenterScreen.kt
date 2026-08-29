@@ -115,6 +115,7 @@ fun ActivityCenterScreen(
                     action = "点击重试",
                     onAction = { viewModel.load(force = true) }
                 )
+
                 selectedSection == 0 -> ActivityOverview(viewModel, navController)
                 selectedSection == 1 -> ActivityStore(
                     viewModel,
@@ -123,6 +124,7 @@ fun ActivityCenterScreen(
                         else confirmProduct = product
                     }
                 )
+
                 selectedSection == 2 -> ActivityLedger(viewModel)
                 else -> ActivityTier(viewModel.tierDetails ?: viewModel.summary?.tier)
             }
@@ -203,14 +205,25 @@ private fun ActivityOverview(viewModel: ActivityCenterViewModel, navController: 
                     .background(CHelperTheme.colors.mainColor)
                     .padding(20.dp)
             ) {
-                Text("可用积分", style = TextStyle(fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f)))
+                Text(
+                    "可用积分",
+                    style = TextStyle(fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
+                )
                 Text(
                     text = "${formatPoints(summary?.points)} PTS",
-                    style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    style = TextStyle(
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "累计 ${formatPoints(summary?.totalEarned)} · 已用 ${formatPoints(summary?.totalSpent)} · 扣回 ${formatPoints(summary?.totalReversed)}",
+                    text = "累计 ${formatPoints(summary?.totalEarned)} · 已用 ${formatPoints(summary?.totalSpent)} · 扣回 ${
+                        formatPoints(
+                            summary?.totalReversed
+                        )
+                    }",
                     style = TextStyle(fontSize = 12.sp, color = Color.White.copy(alpha = 0.82f))
                 )
                 Spacer(Modifier.height(12.dp))
@@ -222,9 +235,16 @@ private fun ActivityOverview(viewModel: ActivityCenterViewModel, navController: 
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("查看创作者排行榜", style = TextStyle(fontSize = 12.sp, color = Color.White))
+                    Text(
+                        "查看创作者排行榜",
+                        style = TextStyle(fontSize = 12.sp, color = Color.White)
+                    )
                     Spacer(Modifier.width(6.dp))
-                    Icon(R.drawable.chevron_right, modifier = Modifier.size(14.dp), contentDescription = null)
+                    Icon(
+                        R.drawable.chevron_right,
+                        modifier = Modifier.size(14.dp),
+                        contentDescription = null
+                    )
                 }
             }
         }
@@ -246,7 +266,10 @@ private fun ActivityRuleCard(rule: ActivityRule) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(rule.title ?: "积分规则", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium))
+            Text(
+                rule.title ?: "积分规则",
+                style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            )
             Text(
                 rule.description.orEmpty(),
                 style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary)
@@ -254,7 +277,11 @@ private fun ActivityRuleCard(rule: ActivityRule) {
         }
         Text(
             "+${formatPoints(rule.points)} PTS",
-            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CHelperTheme.colors.mainColor)
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = CHelperTheme.colors.mainColor
+            )
         )
     }
 }
@@ -278,12 +305,24 @@ private fun ActivityStore(viewModel: ActivityCenterViewModel, onRedeem: (RewardP
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("积分余额", style = TextStyle(color = CHelperTheme.colors.textSecondary))
-                Text("${formatPoints(balance)} PTS", style = TextStyle(fontWeight = FontWeight.Bold, color = CHelperTheme.colors.mainColor))
+                Text(
+                    "${formatPoints(balance)} PTS",
+                    style = TextStyle(
+                        fontWeight = FontWeight.Bold,
+                        color = CHelperTheme.colors.mainColor
+                    )
+                )
             }
         }
         item { SectionTitle("在售商品") }
         items(viewModel.config?.products.orEmpty(), key = { it.id.orEmpty() }) { product ->
-            ProductCard(product, balance, baseTier, viewModel.redeemingProductId == product.id, onRedeem)
+            ProductCard(
+                product,
+                balance,
+                baseTier,
+                viewModel.redeemingProductId == product.id,
+                onRedeem
+            )
         }
         item { SectionTitle("我的兑换") }
         if (viewModel.redemptions.isEmpty()) {
@@ -330,17 +369,30 @@ private fun ProductCard(
             )
             Spacer(Modifier.weight(1f))
             product.stock?.let {
-                Text("剩余 $it", style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary))
+                Text(
+                    "剩余 $it",
+                    style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
+                )
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(product.name ?: "未命名商品", style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
-        Text(product.description.orEmpty(), style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary))
+        Text(
+            product.name ?: "未命名商品",
+            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        )
+        Text(
+            product.description.orEmpty(),
+            style = TextStyle(fontSize = 12.sp, color = CHelperTheme.colors.textSecondary)
+        )
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "${formatPoints(cost)} PTS",
-                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CHelperTheme.colors.mainColor)
+                style = TextStyle(
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CHelperTheme.colors.mainColor
+                )
             )
             if (product.hasDiscount == true) {
                 Spacer(Modifier.width(8.dp))
@@ -359,11 +411,17 @@ private fun ProductCard(
             ) {
                 Text(
                     if (isRedeeming) "兑换中" else "兑换",
-                    style = TextStyle(fontSize = 13.sp, color = if (enabled) Color.White else CHelperTheme.colors.textSecondary)
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        color = if (enabled) Color.White else CHelperTheme.colors.textSecondary
+                    )
                 )
             }
         }
-        Text(stateText, style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary))
+        Text(
+            stateText,
+            style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
+        )
     }
 }
 
@@ -384,7 +442,10 @@ private fun RedemptionCard(item: RewardRedemption) {
                 style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
             )
         }
-        Text("-${formatPoints(item.pointsCost)}", style = TextStyle(color = CHelperTheme.colors.mainColor, fontWeight = FontWeight.Bold))
+        Text(
+            "-${formatPoints(item.pointsCost)}",
+            style = TextStyle(color = CHelperTheme.colors.mainColor, fontWeight = FontWeight.Bold)
+        )
     }
 }
 
@@ -405,7 +466,13 @@ private fun ActivityLedger(viewModel: ActivityCenterViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("当前余额", style = TextStyle(color = CHelperTheme.colors.textSecondary))
-                Text("${formatPoints(viewModel.summary?.points)} PTS", style = TextStyle(fontWeight = FontWeight.Bold, color = CHelperTheme.colors.mainColor))
+                Text(
+                    "${formatPoints(viewModel.summary?.points)} PTS",
+                    style = TextStyle(
+                        fontWeight = FontWeight.Bold,
+                        color = CHelperTheme.colors.mainColor
+                    )
+                )
             }
         }
         if (viewModel.ledger.isEmpty()) {
@@ -445,7 +512,10 @@ private fun LedgerCard(item: ActivityLedgerItem) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.description ?: "积分变动", style = TextStyle(fontWeight = FontWeight.Medium))
-            Text(item.createdAt.formatUnixTime(), style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary))
+            Text(
+                item.createdAt.formatUnixTime(),
+                style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
+            )
         }
         Text(
             "${if (delta >= 0) "+" else ""}${formatPoints(delta)}",
@@ -477,10 +547,17 @@ private fun ActivityTier(details: TierDetails?) {
                     .background(CHelperTheme.colors.mainColor)
                     .padding(20.dp)
             ) {
-                Text("当前有效 Tier", style = TextStyle(fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f)))
+                Text(
+                    "当前有效 Tier",
+                    style = TextStyle(fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                )
                 Text(
                     "Tier ${details.effectiveTier ?: 0} · ${details.effectiveTierName ?: "普通用户"}",
-                    style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    style = TextStyle(
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 )
                 Text(
                     details.nextTierChangeAt?.let { "下一次调整：${it.formatUnixTime()}" }
@@ -516,13 +593,26 @@ private fun TierSummaryCard(item: TierSummary) {
             .padding(15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("T${item.tier ?: 0}", style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = CHelperTheme.colors.mainColor))
+        Text(
+            "T${item.tier ?: 0}",
+            style = TextStyle(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = CHelperTheme.colors.mainColor
+            )
+        )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(item.tierName ?: "Tier", style = TextStyle(fontWeight = FontWeight.Medium))
-            Text(detail, style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary))
+            Text(
+                detail,
+                style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
+            )
         }
-        Text(tierStatusText(item.status), style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.mainColor))
+        Text(
+            tierStatusText(item.status),
+            style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.mainColor)
+        )
     }
 }
 
@@ -536,29 +626,53 @@ private fun TierGrantCard(item: TierGrant) {
             .padding(15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("T${item.tier ?: 0}", style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = CHelperTheme.colors.mainColor))
+        Text(
+            "T${item.tier ?: 0}",
+            style = TextStyle(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = CHelperTheme.colors.mainColor
+            )
+        )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.label ?: item.tierName ?: "Tier 授权", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                item.label ?: item.tierName ?: "Tier 授权",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Text(
                 "${item.startsAt.formatUnixTime()} 至 ${item.expiresAt.formatUnixTime()}",
                 style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.textSecondary)
             )
         }
-        Text(tierStatusText(item.status), style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.mainColor))
+        Text(
+            tierStatusText(item.status),
+            style = TextStyle(fontSize = 11.sp, color = CHelperTheme.colors.mainColor)
+        )
     }
 }
 
 @Composable
-private fun FulfillmentDialog(product: RewardProduct, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+private fun FulfillmentDialog(
+    product: RewardProduct,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
     val info = rememberTextFieldState()
     CustomDialog(onDismissRequest = onDismiss) {
         DialogContainer(backgroundNoTranslate = true) {
             Column {
                 Text(
                     text = "兑换 ${product.name ?: "实物奖品"}",
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    style = TextStyle(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
                 )
                 Text(
                     "请填写收件人、联系电话和地址，内容会随兑换单提交给管理员。",
@@ -567,7 +681,10 @@ private fun FulfillmentDialog(product: RewardProduct, onDismiss: () -> Unit, onC
                 )
                 TextField(
                     state = info,
-                    modifier = Modifier.fillMaxWidth().height(110.dp).padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                        .padding(16.dp),
                     contentAlignment = Alignment.TopStart,
                     hint = "收件人 / 电话 / 地址",
                     lineLimits = TextFieldLineLimits.MultiLine(3, 6)
@@ -588,20 +705,36 @@ private fun FulfillmentDialog(product: RewardProduct, onDismiss: () -> Unit, onC
 
 @Composable
 private fun DialogAction(text: String, modifier: Modifier, onClick: () -> Unit) {
-    Box(modifier = modifier.fillMaxHeight().clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
         Text(text, style = TextStyle(fontSize = 17.sp, color = CHelperTheme.colors.mainColor))
     }
 }
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = CHelperTheme.colors.textMain))
+    Text(
+        text,
+        style = TextStyle(
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = CHelperTheme.colors.textMain
+        )
+    )
 }
 
 @Composable
 private fun EmptyCard(text: String) {
     Box(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CHelperTheme.colors.backgroundComponent).padding(22.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(CHelperTheme.colors.backgroundComponent)
+            .padding(22.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(text, style = TextStyle(color = CHelperTheme.colors.textSecondary))
@@ -615,7 +748,11 @@ private fun CenterMessage(text: String, action: String? = null, onAction: () -> 
             Text(text, style = TextStyle(color = CHelperTheme.colors.textSecondary))
             if (action != null) {
                 Spacer(Modifier.height(8.dp))
-                Text(action, modifier = Modifier.clickable(onClick = onAction), style = TextStyle(color = CHelperTheme.colors.mainColor))
+                Text(
+                    action,
+                    modifier = Modifier.clickable(onClick = onAction),
+                    style = TextStyle(color = CHelperTheme.colors.mainColor)
+                )
             }
         }
     }
@@ -624,7 +761,11 @@ private fun CenterMessage(text: String, action: String? = null, onAction: () -> 
 private fun formatPoints(value: Double?): String {
     val number = value ?: 0.0
     val whole = number.toLong()
-    return if (number == whole.toDouble()) whole.toString() else String.format(java.util.Locale.US, "%.2f", number).trimEnd('0').trimEnd('.')
+    return if (number == whole.toDouble()) whole.toString() else String.format(
+        java.util.Locale.US,
+        "%.2f",
+        number
+    ).trimEnd('0').trimEnd('.')
 }
 
 private fun tierStatusText(status: String?): String = when (status) {
