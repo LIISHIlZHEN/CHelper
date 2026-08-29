@@ -28,6 +28,9 @@ endif()
 include(FetchContent)
 find_package(Git REQUIRED)
 set(CHELPER_THIRDPARTY_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty_downloads")
+# fresh checkout 下该目录（.gitignore 中的生成目录）不存在，且 execute_process
+# 不会自动创建 WORKING_DIRECTORY，必须在使用前显式创建，否则 git clone 无法启动。
+file(MAKE_DIRECTORY "${CHELPER_THIRDPARTY_SOURCE_DIR}")
 
 # 拉取第三方库源码到 3rdparty_downloads（只含源码，不含构建产物）。
 # - 首次缺失或损坏时由本函数负责 clone + checkout 到锁定版本（含嵌套子模块）；
