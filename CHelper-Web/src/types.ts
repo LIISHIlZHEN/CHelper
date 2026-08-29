@@ -3,5 +3,6 @@
  */
 export interface EditorValue {
   text: string
-  cursorPosition: number
+  selectionStart: number
+  selectionEnd: number
 }

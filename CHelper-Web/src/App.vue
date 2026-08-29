@@ -16,7 +16,11 @@ const suggestions = ref<Suggestion[]>([])
 const suggestionIndex = ref(0)
 const realSuggestionSize = ref(0)
 const isBranchSelectorVisible = ref(false)
-const editorValue = ref<EditorValue>({ text: '', cursorPosition: 0 })
+const editorValue = ref<EditorValue>({
+  text: '',
+  selectionStart: 0,
+  selectionEnd: 0,
+})
 const syntaxTokens = ref<number[]>([])
 
 const listRef = ref<HTMLElement | null>(null)
@@ -62,7 +66,7 @@ function updateSuggestions(): void {
     return
   }
   // 补全提示是按光标位置计算的，记住这个位置，加载更多和点击补全时都要用同一个位置
-  suggestionIndex.value = editorValue.value.cursorPosition
+  suggestionIndex.value = editorValue.value.selectionStart
   realSuggestionSize.value = context.getSuggestionSize(suggestionIndex.value)
   suggestions.value = []
   loadMore(Math.floor((listRef.value?.clientHeight ?? 0) / 25))
@@ -82,10 +86,13 @@ function onEditorValueChanged(newEditorValue: EditorValue): void {
     return
   }
   if (editorValue.value.text === newEditorValue.text) {
-    if (editorValue.value.cursorPosition === newEditorValue.cursorPosition) {
+    if (
+      editorValue.value.selectionStart === newEditorValue.selectionStart &&
+      editorValue.value.selectionEnd === newEditorValue.selectionEnd
+    ) {
       return
     }
-    // 只有光标改变，无需重新解析，直接用新的光标位置查询
+    // 只有光标或选区改变，无需重新解析，直接用新的光标位置查询
     editorValue.value = newEditorValue
   } else {
     // 文本内容改变，重新解析命令生成新的命令上下文
@@ -105,7 +112,7 @@ function onEditorValueChanged(newEditorValue: EditorValue): void {
     }
     syntaxTokens.value = context.getSyntaxTokens()
   }
-  paramHint.value = context.getParamHint(editorValue.value.cursorPosition)
+  paramHint.value = context.getParamHint(editorValue.value.selectionStart)
   updateSuggestions()
 }
 
@@ -134,13 +141,14 @@ function onSuggestionClick(which: number): void {
   if (context === undefined) {
     return
   }
-  const clickSuggestionResult = context.applySuggestion(editorValue.value.cursorPosition, which)
+  const clickSuggestionResult = context.applySuggestion(editorValue.value.selectionStart, which)
   if (clickSuggestionResult == null) {
     return
   }
   onEditorValueChanged({
     text: clickSuggestionResult.newText,
-    cursorPosition: clickSuggestionResult.cursorPosition,
+    selectionStart: clickSuggestionResult.cursorPosition,
+    selectionEnd: clickSuggestionResult.cursorPosition,
   })
 }
 
