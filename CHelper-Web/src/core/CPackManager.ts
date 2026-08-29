@@ -1,4 +1,4 @@
-import { CHelperCore, createWasmFuture } from '@/core/libCHelperWeb.js'
+import { CHelperCore, createWasmFuture } from '@/core/libCHelperWeb'
 
 import releaseVanillaCPack from '@/assets/release-vanilla-1.21.132.1.cpack?url'
 import releaseExperimentCPack from '@/assets/release-experiment-1.21.132.1.cpack?url'
@@ -7,9 +7,17 @@ import betaExperimentCPack from '@/assets/beta-experiment-1.26.0.29.cpack?url'
 import neteaseVanillaCPack from '@/assets/netease-vanilla-1.21.50.07.cpack?url'
 import neteaseExperimentCPack from '@/assets/netease-experiment-1.21.50.07.cpack?url'
 
-export const DEFAULT_BRANCH = 'release-experiment'
+export type Branch =
+  | 'release-vanilla'
+  | 'release-experiment'
+  | 'beta-vanilla'
+  | 'beta-experiment'
+  | 'netease-vanilla'
+  | 'netease-experiment'
 
-export const ALL_BRANCH = [
+export const DEFAULT_BRANCH: Branch = 'release-experiment'
+
+export const ALL_BRANCH: Branch[] = [
   'release-vanilla',
   'release-experiment',
   'beta-vanilla',
@@ -18,7 +26,7 @@ export const ALL_BRANCH = [
   'netease-experiment',
 ]
 
-export const ALL_BRANCH_CHINESE = [
+export const ALL_BRANCH_CHINESE: string[] = [
   '正式版-原版-1.21.132.1',
   '正式版-实验性玩法-1.21.132.1',
   '测试版-原版-1.26.0.29',
@@ -27,23 +35,21 @@ export const ALL_BRANCH_CHINESE = [
   '中国版-实验性玩法-1.21.50.07',
 ]
 
-let cpackCache = {}
+const cpackCache: Partial<Record<Branch, Uint8Array>> = {}
 
-export async function getCore(branch) {
+export async function getCore(branch: Branch): Promise<CHelperCore> {
   let cpack = cpackCache[branch]
   if (cpack === undefined) {
-    cpack = await fetch(getRealFileName(branch))
-      .then((response) => response.arrayBuffer())
-      .then(async (cpack) => {
-        return new Uint8Array(cpack)
-      })
+    const response = await fetch(getRealFileName(branch))
+    const buffer = await response.arrayBuffer()
+    cpack = new Uint8Array(buffer)
     cpackCache[branch] = cpack
   }
   await createWasmFuture
   return new CHelperCore(cpack)
 }
 
-export function getRealFileName(branch) {
+export function getRealFileName(branch: Branch): string {
   switch (branch) {
     case 'release-vanilla':
       return releaseVanillaCPack
