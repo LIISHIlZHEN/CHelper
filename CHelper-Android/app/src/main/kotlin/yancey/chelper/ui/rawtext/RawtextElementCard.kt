@@ -76,9 +76,9 @@ enum class RawtextAddKind(val label: String, val desc: String) {
 
 fun createElement(kind: RawtextAddKind): RawtextElement = when (kind) {
     RawtextAddKind.Text -> RawtextElement.Text("")
-    RawtextAddKind.Translate -> RawtextElement.Translate()
-    RawtextAddKind.Selector -> RawtextElement.Selector("@s")
-    RawtextAddKind.Score -> RawtextElement.Score("@s", "金币")
+    RawtextAddKind.Translate -> RawtextElement.Translate().apply { key = "" }
+    RawtextAddKind.Selector -> RawtextElement.Selector("")
+    RawtextAddKind.Score -> RawtextElement.Score("", "")
     RawtextAddKind.Condition -> RawtextElement.Condition()
     RawtextAddKind.Sequence -> RawtextElement.Condition().apply { mode = RawtextConditionMode.Sequence }
 }

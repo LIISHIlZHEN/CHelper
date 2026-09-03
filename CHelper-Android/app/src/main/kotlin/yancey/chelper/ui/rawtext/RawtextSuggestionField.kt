@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,12 @@ fun RawtextSuggestionField(
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
+    // value 外部变化（如按钮/预设/导入赋值）时同步 tfv，避免输入框仍显示旧值
+    LaunchedEffect(value) {
+        if (tfv.text != value) {
+            tfv = TextFieldValue(value, TextRange(value.length))
+        }
+    }
     val (start, sugs) = remember(tfv.text, tfv.selection.start, recomputeKey) {
         runCatching { suggest(tfv.text, tfv.selection.start) }.getOrElse { -1 to emptyList() }
     }
