@@ -265,6 +265,10 @@ namespace CHelper::Test {
                 std::unique_ptr<CommandContext> full(core.createContext(u"/pblock " + *block));
                 ASSERT_NE(full, nullptr);
                 EXPECT_TRUE(full->getErrorReasons().empty());
+                // minecraft: 前缀长度修正（std::size 不再含 \0）：输入完整前缀应出带前缀候选
+                std::unique_ptr<CommandContext> pref(core.createContext(u"/pblock minecraft:"));
+                ASSERT_NE(pref, nullptr);
+                EXPECT_TRUE(hasSuggestion(*pref, u"minecraft:stone"));
             }
             // 拓展包自带大表合并：自定义方块/物品并入主包表，建议可补全、可解析
             {

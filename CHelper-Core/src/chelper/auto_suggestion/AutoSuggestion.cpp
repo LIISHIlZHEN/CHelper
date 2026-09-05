@@ -219,9 +219,9 @@ namespace CHelper::AutoSuggestion {
                     } else {
                         namespaceContain.push_back(item->getIdWithNamespace());
                     }
-                    //省略minecraft命名空间
-                    constexpr size_t defaultNamespaceSize = std::size(u"minecraft");
-                    constexpr size_t defaultNamespacePrefixSize = std::size(u"minecraft:");
+                    //省略minecraft命名空间（长度不含字面量结尾空字符：minecraft=9、minecraft:=10）
+                    constexpr size_t defaultNamespaceSize = std::size(u"minecraft") - 1;
+                    constexpr size_t defaultNamespacePrefixSize = std::size(u"minecraft:") - 1;
                     if (!item->idNamespace.has_value() || (item->idNamespace.value().size() == defaultNamespaceSize && item->idNamespace.value() == u"minecraft")) [[likely]] {
                         if (index1 == defaultNamespacePrefixSize) [[unlikely]] {
                             nameStartOf.push_back(item);
