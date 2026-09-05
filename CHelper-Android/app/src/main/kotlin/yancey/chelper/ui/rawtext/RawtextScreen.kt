@@ -38,6 +38,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -54,11 +55,15 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import com.hjq.toast.Toaster
 import kotlinx.coroutines.launch
 import yancey.chelper.R
+import yancey.chelper.ui.JsonEditorSession
 import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.dialog.IsConfirmDialog
 import yancey.chelper.ui.common.dialog.MenuDialog
@@ -66,6 +71,7 @@ import yancey.chelper.ui.common.layout.Copyright
 import yancey.chelper.ui.common.layout.Header
 import yancey.chelper.ui.common.layout.RootView
 import yancey.chelper.ui.common.widget.Icon
+import yancey.chelper.ui.common.widget.Text
 
 /** 需要确认时由元素卡片向屏幕级请求（避免在 LazyColumn 内直接渲染全屏弹窗导致崩溃） */
 data class RawtextConfirmRequest(
@@ -80,7 +86,10 @@ val LocalRawtextConfirm = compositionLocalOf<((RawtextConfirmRequest) -> Unit)?>
 val LocalRawtextHelp = compositionLocalOf<((String, String) -> Unit)?> { null }
 
 @Composable
-fun RawtextScreen(viewModel: RawtextViewModel = viewModel()) {
+fun RawtextScreen(
+    viewModel: RawtextViewModel = viewModel(),
+    navController: NavHostController? = null,
+) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val clipboard = LocalClipboard.current
@@ -100,14 +109,79 @@ fun RawtextScreen(viewModel: RawtextViewModel = viewModel()) {
     // 首帧后再加载大体积翻译键，避免进入编辑器时卡顿
     LaunchedEffect(Unit) { viewModel.ensureTranslate() }
 
+    // —— 嵌入会话（命令编辑器 tellraw/titleraw 的 JSON 参数位进入本页）——
+    // 预填命令里已输入的 JSON（可解析则载入元素继续编辑；写了一半不可解析则打开空编辑器并提示，
+    // 原命令文本保持不动，只有点"插入到命令"才整体替换；取消/系统返回 = 放弃，原样保留）。
+    val embeddedSession = remember { JsonEditorSession.pending }
+    var embedNotice by remember { mutableStateOf<String?>(null) }
+    if (embeddedSession != null) {
+        LaunchedEffect(Unit) {
+            viewModel.awaitRestored()
+            // 嵌入会话不写 rawtext 持久草稿
+            viewModel.setAutoSave(false)
+            val initial = embeddedSession.initialJson?.trim().orEmpty()
+            if (initial.isNotEmpty()) {
+                val result = viewModel.importFromText(initial)
+                if (result.isFailure) {
+                    embedNotice = "原 JSON 不完整，未能载入元素；点\"插入到命令\"将整体替换"
+                }
+            }
+        }
+        DisposableEffect(Unit) {
+            onDispose {
+                // 未完成（返回/被关闭）→ 放弃会话；完成路径由 finish() 置入结果，这里不动
+                if (JsonEditorSession.resultJson == null) {
+                    JsonEditorSession.cancel()
+                }
+            }
+        }
+    }
+
     RootView {
         CompositionLocalProvider(
             LocalRawtextConfirm provides { confirmRequest = it },
             LocalRawtextHelp provides { title, content -> helpRequest = title to content },
         ) {
         Column(Modifier.fillMaxSize()) {
-            // 横屏隐藏顶部页眉，竖屏保留
-            if (!isLandscape) {
+            if (embeddedSession != null) {
+                // 嵌入模式顶栏：插入到命令并返回 / 放弃
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.layout_rawtext_title),
+                        modifier = Modifier.weight(1f),
+                        style = TextStyle(
+                            fontSize = 16.sp,
+                            color = CHelperTheme.colors.textMain,
+                        ),
+                    )
+                    RawtextSmallButton("放弃", onClick = {
+                        JsonEditorSession.cancel()
+                        navController?.popBackStack()
+                    })
+                    RawtextSmallButton("插入到命令", onClick = {
+                        JsonEditorSession.finish(viewModel.compact())
+                        navController?.popBackStack()
+                    })
+                }
+                embedNotice?.let {
+                    Text(
+                        text = it,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            color = CHelperTheme.colors.textSecondary,
+                        ),
+                    )
+                }
+            } else if (!isLandscape) {
                 Header(
                     title = stringResource(R.string.layout_rawtext_title),
                     showBack = true,
