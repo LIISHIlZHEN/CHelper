@@ -20,7 +20,7 @@
 | --- | --- |
 | 只启用 A | `/we` 有 welcome（说明带【A】）；`/hi` 可用；`/welcome all`、`/welcome player/vip/admin`、`/grant @a`、`/execute myaction @s` 均无报错 |
 | 内置表引用 | `/pentity `/`/pitem `/`/pblock `/`/pgamemode ` 分别出实体/物品/方块/模式候选，选择后无报错 |
-| 自定义方块与物品 | `/pblock ` 含 `demo_machine`（可带前缀）；`/pblock demo_machine`、`/setblock ~ ~ ~ demo_machine[lit=false]` 无报错且状态值有中文描述；`/pitem ` 含 `custom_gadget`，选择无报错 |
+| 自定义方块与物品 | `/pblock ` 含 `demo:demo_machine`；`/pblock demo:demo_machine`、`/setblock ~ ~ ~ demo:demo_machine[lit=false]` 无报错且状态值有中文描述；**短名 `demo_machine` 报错**（非 minecraft 命名空间必须带前缀）；`/pitem ` 含 `custom_gadget`（默认命名空间，短名合法），选择无报错 |
 | JSON 结构参数 | `/pjson ` 后输入 `{"text":"hi"}` 无报错 |
 | 选择器 | `/grant @a[` 出参数候选；`@a[type=player]` 无报错；`/grant @x[myflag=true]`、`@a[myflag=true]` 无报错，`@x[myflag=1]` 报错；`/grant @` 变量候选含 `@x` |
 | 来源徽标 | `/we` 的 welcome 行、`/welcome ` 的 player/vip/admin 行都显示「来自 测试资源包 A」；内置命令/候选不显示 |

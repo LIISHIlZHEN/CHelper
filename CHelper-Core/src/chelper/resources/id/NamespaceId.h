@@ -35,6 +35,14 @@ namespace CHelper {
 
     public:
         std::shared_ptr<NormalId> &getIdWithNamespace();
+
+        /**
+         * 是否允许省略命名空间前缀（即短名合法）：仅缺省（视为 minecraft）
+         * 或显式 minecraft 的条目可省；其它命名空间（demo:xxx）必须带前缀。
+         */
+        [[nodiscard]] bool canOmitNamespace() const {
+            return !idNamespace.has_value() || idNamespace.value() == u"minecraft";
+        }
     };
 
 }// namespace CHelper

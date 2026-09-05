@@ -233,7 +233,9 @@ namespace CHelper::Parser {
             XXH64_hash_t strHash = XXH3_64bits(str.data(), str.size() * sizeof(decltype(str)::value_type));
             std::shared_ptr<NamespaceId> currentBlock = nullptr;
             for (const auto &item: *node.blockIds->blockStateValues) {
-                if (item->fastMatch(strHash) || item->getIdWithNamespace()->fastMatch(strHash)) [[unlikely]] {
+                // 带命名空间条目必须匹配全名（demo:xxx）；仅默认命名空间可用短名
+                if (item->getIdWithNamespace()->fastMatch(strHash) ||
+                    (item->canOmitNamespace() && item->fastMatch(strHash))) [[unlikely]] {
                     currentBlock = item;
                     break;
                 }
@@ -339,7 +341,9 @@ namespace CHelper::Parser {
             XXH64_hash_t strHash = XXH3_64bits(str.data(), str.size() * sizeof(decltype(str)::value_type));
             std::shared_ptr<NamespaceId> currentItem = nullptr;
             for (const auto &item: *node.itemIds) {
-                if (item->fastMatch(strHash) || item->getIdWithNamespace()->fastMatch(strHash)) [[unlikely]] {
+                // 带命名空间条目必须匹配全名；仅默认命名空间可用短名
+                if (item->getIdWithNamespace()->fastMatch(strHash) ||
+                    (item->canOmitNamespace() && item->fastMatch(strHash))) [[unlikely]] {
                     currentItem = item;
                     break;
                 }
@@ -406,7 +410,9 @@ namespace CHelper::Parser {
                 std::u16string_view str = tokens.string();
                 XXH64_hash_t strHash = XXH3_64bits(str.data(), str.size() * sizeof(decltype(str)::value_type));
                 if (std::ranges::all_of(*node.customContents, [&strHash](const auto &item) {
-                        return !item->fastMatch(strHash) && !item->getIdWithNamespace()->fastMatch(strHash);
+                        // 带命名空间条目必须写全名（demo:xxx）；仅默认命名空间可用短名
+                        return !item->getIdWithNamespace()->fastMatch(strHash) &&
+                               !(item->canOmitNamespace() && item->fastMatch(strHash));
                     })) [[unlikely]] {
                     return ASTNode::andNode(node, {std::move(result)}, tokens, ErrorReason::incomplete(tokens, fmt::format(u"找不到含义 -> {}", str)));
                 }

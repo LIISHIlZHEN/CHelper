@@ -279,15 +279,28 @@ namespace CHelper::Test {
                 std::unique_ptr<CommandContext> full(core.createContext(u"/pblock " + *custom));
                 ASSERT_NE(full, nullptr);
                 EXPECT_TRUE(full->getErrorReasons().empty());
-                // 自定义方块属性状态带描述：/setblock ~ ~ ~ demo_machine[lit=false] 无错误
-                std::unique_ptr<CommandContext> states(core.createContext(u"/setblock ~ ~ ~ demo_machine[lit=false]"));
+                // 自定义方块：必须带命名空间前缀（demo:demo_machine）；短名 demo_machine 报错
+                std::unique_ptr<CommandContext> pref(core.createContext(u"/pblock demo:demo_machine"));
+                ASSERT_NE(pref, nullptr);
+                EXPECT_TRUE(pref->getErrorReasons().empty());
+                std::unique_ptr<CommandContext> plain(core.createContext(u"/pblock demo_machine"));
+                ASSERT_NE(plain, nullptr);
+                EXPECT_FALSE(plain->getErrorReasons().empty());
+                // 自定义方块属性状态带描述：前缀形式 /setblock ... demo:demo_machine[lit=false] 无错误
+                std::unique_ptr<CommandContext> states(core.createContext(u"/setblock ~ ~ ~ demo:demo_machine[lit=false]"));
                 ASSERT_NE(states, nullptr);
                 EXPECT_TRUE(states->getErrorReasons().empty());
-                // 真机验证等价路径：/setblock 不带状态、/give 使用自定义物品（合并进主包大表）
+                std::unique_ptr<CommandContext> statesPlain(core.createContext(u"/setblock ~ ~ ~ demo_machine[lit=false]"));
+                ASSERT_NE(statesPlain, nullptr);
+                EXPECT_FALSE(statesPlain->getErrorReasons().empty());
+                // 真机验证等价路径：前缀不带状态通过；/give 自定义物品（默认命名空间短名合法）
                 {
-                    std::unique_ptr<CommandContext> s1(core.createContext(u"/setblock ~ ~ ~ demo_machine"));
+                    std::unique_ptr<CommandContext> s1(core.createContext(u"/setblock ~ ~ ~ demo:demo_machine"));
                     ASSERT_NE(s1, nullptr);
                     EXPECT_TRUE(s1->getErrorReasons().empty());
+                    std::unique_ptr<CommandContext> s2(core.createContext(u"/setblock ~ ~ ~ demo_machine"));
+                    ASSERT_NE(s2, nullptr);
+                    EXPECT_FALSE(s2->getErrorReasons().empty());
                     std::unique_ptr<CommandContext> g1(core.createContext(u"/give @s custom_gadget"));
                     ASSERT_NE(g1, nullptr);
                     EXPECT_TRUE(g1->getErrorReasons().empty());
