@@ -55,7 +55,6 @@ data class RawtextHasItem(
 data class RawtextParsedSelector(var variable: String = "@s", var args: MutableList<RawtextSelectorArg> = mutableListOf())
 
 object RawtextSelectorParser {
-    val SEL_VARS = listOf("@a", "@p", "@r", "@e", "@n", "@s", "@initiator")
 
     private fun extractBracket(s: String, open: Char, close: Char): String? {
         val i = s.indexOf(open)
@@ -127,7 +126,8 @@ object RawtextSelectorParser {
     private fun parseInternal(str: String): RawtextParsedSelector {
         // 中文输入法全角 → 半角（1:1 替换）
         val s = normalizeFullwidth(str.trim())
-        val m = Regex("^@[A-Za-z]+").find(s)
+        // 变量：@字母开头（兼容自定义变量 @x/@x2/@my_var 等；不做内置名单限制）
+        val m = Regex("^@[A-Za-z_][A-Za-z0-9_]*").find(s)
         val variable = m?.value ?: "@s"
         val rest = if (s.length > variable.length) s.substring(variable.length) else ""
         val sel = RawtextParsedSelector(variable, mutableListOf())

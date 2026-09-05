@@ -76,15 +76,29 @@ fun RawtextSuggestionField(
             tfv = TextFieldValue(value, TextRange(value.length))
         }
     }
-    val (start, sugs) = remember(tfv.text, tfv.selection.start, recomputeKey) {
-        runCatching { suggest(tfv.text, tfv.selection.start) }.getOrElse { -1 to emptyList() }
+    // 补全缓存策略：只在【文本变化 / recomputeKey 变化 / 聚焦状态翻转】时重算
+    // （remember 的 lambda 内读取 focused，自动建立订阅）；
+    // 纯光标移动（文本不变）直接复用上次结果，不做任何补全解析 —— 这是光标滑动
+    // 流畅的关键。下拉显示条件额外要求"光标仍停在计算时位置"：
+    // 拖选/滑动中下拉自动隐藏；光标停留中段不显示（中段敲字符 → 文本变化 → 按当前
+    // 光标重算并显示该位置补全）。
+    val (start, sugs, suggestionsForCaret) = remember(tfv.text, recomputeKey) {
+        val caret = tfv.selection.start
+        if (focused) {
+            val r = runCatching { suggest(tfv.text, caret) }.getOrElse { -1 to emptyList() }
+            Triple(r.first, r.second, caret)
+        } else {
+            Triple(-1, emptyList<RawtextSuggestion>(), caret)
+        }
     }
 
     fun applySuggestion(s: RawtextSuggestion) {
         val replace = s.replace ?: return
         val caret = tfv.selection.start.coerceIn(0, tfv.text.length)
-        val s0 = if (s.appendOnly) caret
-        else (if (start in 0..tfv.text.length) start else caret).coerceIn(0, tfv.text.length)
+        // 替换起点：引擎建议自带区间优先；否则沿用字段计算起点（appendOnly = 光标处追加）
+        val s0 = s.replaceFrom
+            ?: (if (s.appendOnly) caret
+            else (if (start in 0..tfv.text.length) start else caret)).coerceIn(0, tfv.text.length)
         val newText = tfv.text.substring(0, s0) + replace + tfv.text.substring(caret)
         val pos = if (s.caretPos != null) s0 + s.caretPos else s0 + replace.length
         tfv = TextFieldValue(newText, TextRange(pos.coerceIn(0, newText.length)))
@@ -100,7 +114,15 @@ fun RawtextSuggestionField(
         }
         BasicTextField(
             value = tfv,
-            onValueChange = { tfv = it; onChange(it.text) },
+            onValueChange = { v ->
+                val textChanged = v.text != tfv.text
+                tfv = v
+                // 光标/选区移动不向上层通报：避免每个滑动事件触发整棵元素树 targets 重算
+                // （recomputeKey 变化会让所有字段的补全计算连锁重跑）
+                if (textChanged) {
+                    onChange(v.text)
+                }
+            },
             singleLine = true,
             textStyle = TextStyle(color = CHelperTheme.colors.textMain, fontSize = 14.sp, fontFamily = FontFamily.Monospace),
             cursorBrush = SolidColor(CHelperTheme.colors.mainColor),
@@ -114,7 +136,7 @@ fun RawtextSuggestionField(
                 }
             },
         )
-        if (focused && sugs.isNotEmpty()) {
+        if (focused && tfv.selection.start == suggestionsForCaret && sugs.isNotEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 clipCornerSize = 10.dp,
@@ -151,7 +173,7 @@ fun RawtextSuggestionField(
     }
 }
 
-/** 选择器自动补全 */
+/** 选择器自动补全（统一走共享内核 FragmentContext） */
 @Composable
 fun RawtextSelectorField(
     value: String,
@@ -165,14 +187,13 @@ fun RawtextSelectorField(
         label = label,
         placeholder = "选择器，如 @s[scores={雪球菜单=1}]",
         suggest = { text, caret ->
-            val ctx = RawtextAutocomplete.context(text, caret)
-            ctx.start to RawtextAutocomplete.suggestions(ctx, targets)
+            FragmentCompletion.selector(text, caret, targets)
         },
         recomputeKey = targets,
     )
 }
 
-/** 翻译识别符补全 */
+/** 翻译识别符补全（统一走共享内核 translate 键表） */
 @Composable
 fun RawtextKeyField(
     value: String,
@@ -185,11 +206,7 @@ fun RawtextKeyField(
         label = label,
         placeholder = "如 item.diamond.name（输入自动补全全量键名）",
         suggest = { text, caret ->
-            val before = text.substring(0, caret.coerceIn(0, text.length))
-            val m = Regex("([\u4e00-\u9fa5a-zA-Z0-9_.]*)$").find(before)
-            val prefix = m?.groupValues?.get(1) ?: ""
-            val start = caret - prefix.length
-            start to RawtextAutocomplete.keySuggestions(prefix)
+            FragmentCompletion.translate(text, caret)
         },
     )
 }
