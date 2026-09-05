@@ -18,6 +18,7 @@
 
 #include <chelper/auto_suggestion/AutoSuggestion.h>
 #include <chelper/node/NodeType.h>
+#include <chelper/resources/CPack.h>
 
 #define CHELPER_COLLECT_AUTO_SUGGESTION(v1)                                                                                                   \
     case Node::NodeTypeId::v1:                                                                                                                \
@@ -78,6 +79,17 @@ namespace CHelper::AutoSuggestion {
             std::u16string_view str = astNode.tokens.string().substr(0, index - astNode.tokens.startIndex);
             KMPMatcher kmpMatcher(str);
             std::vector<std::shared_ptr<NormalId>> nameStartOf, nameContain, descriptionContain;
+            // 命令名候选来源（一级补全徽标）：按别名查 CPack 来源表，非内置则打标
+            auto makeId = [&node](const std::u16string &name, const std::optional<std::u16string> &description) {
+                auto id = NormalId::make(name, description);
+                if (node.cpack != nullptr) {
+                    const auto &it = node.cpack->commandNameSources.find(name);
+                    if (it != node.cpack->commandNameSources.end() && !it->second.empty()) {
+                        id->packName = it->second;
+                    }
+                }
+                return id;
+            };
             for (const auto &item: *node.commands) {
                 //通过名字进行搜索
                 bool flag = false;
@@ -85,9 +97,9 @@ namespace CHelper::AutoSuggestion {
                     size_t index1 = kmpMatcher.match(item2);
                     if (index1 != std::u16string::npos) [[unlikely]] {
                         if (index1 == 0) [[unlikely]] {
-                            nameStartOf.push_back(NormalId::make(item2, item.description));
+                            nameStartOf.push_back(makeId(item2, item.description));
                         } else {
-                            nameContain.push_back(NormalId::make(item2, item.description));
+                            nameContain.push_back(makeId(item2, item.description));
                         }
                         flag = true;
                     }
@@ -99,7 +111,7 @@ namespace CHelper::AutoSuggestion {
                 if (item.description.has_value() &&
                     kmpMatcher.match(item.description.value()) != std::u16string::npos) [[unlikely]] {
                     for (const auto &item2: item.name) {
-                        descriptionContain.push_back(NormalId::make(item2, item.description));
+                        descriptionContain.push_back(makeId(item2, item.description));
                     }
                 }
             }
@@ -132,6 +144,17 @@ namespace CHelper::AutoSuggestion {
             std::u16string_view str = astNode.tokens.string().substr(0, index - astNode.tokens.startIndex);
             KMPMatcher kmpMatcher(str);
             std::vector<std::shared_ptr<NormalId>> nameStartOf, nameContain, descriptionContain;
+            // 命令名候选来源（一级补全徽标）：按别名查 CPack 来源表，非内置则打标
+            auto makeId = [&node](const std::u16string &name, const std::optional<std::u16string> &description) {
+                auto id = NormalId::make(name, description);
+                if (node.cpack != nullptr) {
+                    const auto &it = node.cpack->commandNameSources.find(name);
+                    if (it != node.cpack->commandNameSources.end() && !it->second.empty()) {
+                        id->packName = it->second;
+                    }
+                }
+                return id;
+            };
             for (const auto &item: *node.commands) {
                 bool flag = false;
                 for (const auto &item2: item.name) {
@@ -139,9 +162,9 @@ namespace CHelper::AutoSuggestion {
                     size_t index1 = kmpMatcher.match(item2);
                     if (index1 != std::u16string::npos) [[unlikely]] {
                         if (index1 == 0) [[unlikely]] {
-                            nameStartOf.push_back(NormalId::make(item2, item.description));
+                            nameStartOf.push_back(makeId(item2, item.description));
                         } else {
-                            nameContain.push_back(NormalId::make(item2, item.description));
+                            nameContain.push_back(makeId(item2, item.description));
                         }
                         flag = true;
                     }
@@ -152,7 +175,7 @@ namespace CHelper::AutoSuggestion {
                 //通过介绍进行搜索
                 if (item.description.has_value() && kmpMatcher.match(item.description.value()) != std::u16string::npos) [[unlikely]] {
                     for (const auto &item2: item.name) {
-                        descriptionContain.push_back(NormalId::make(item2, item.description));
+                        descriptionContain.push_back(makeId(item2, item.description));
                     }
                 }
             }
@@ -286,7 +309,8 @@ namespace CHelper::AutoSuggestion {
     };
 
     bool collectNodeRelativeFloatSuggestions(size_t index, Suggestions &suggestions, bool canUseCaretNotation) {
-        suggestions.addSpaceSuggestion({index, index, false, spaceId});
+        // 注意：不给"空格"建议——坐标分量之间的空格由 REQUIRE_SPACE 机制（canAddSpace0）提供；
+        // 这里只给 ~（相对）与 ^（局部，可选）两个坐标前缀符号，避免单值位置（如选择器 x=）出现多余空格项。
         suggestions.addSymbolSuggestion({index, index, false, Node::NodeRelativeFloat::nodeRelativeNotation.normalId});
         if (canUseCaretNotation) [[likely]] {
             suggestions.addSymbolSuggestion({index, index, false, Node::NodeRelativeFloat::nodeCaretNotation.normalId});
