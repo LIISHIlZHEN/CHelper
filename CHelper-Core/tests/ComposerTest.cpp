@@ -265,6 +265,10 @@ namespace CHelper::Test {
                 std::unique_ptr<CommandContext> full(core.createContext(u"/pblock " + *block));
                 ASSERT_NE(full, nullptr);
                 EXPECT_TRUE(full->getErrorReasons().empty());
+                // minecraft: 前缀长度修正（std::size 不再含 \0）：输入完整前缀应出带前缀候选
+                std::unique_ptr<CommandContext> pref(core.createContext(u"/pblock minecraft:"));
+                ASSERT_NE(pref, nullptr);
+                EXPECT_TRUE(hasSuggestion(*pref, u"minecraft:stone"));
             }
             // 拓展包自带大表合并：自定义方块/物品并入主包表，建议可补全、可解析
             {
@@ -275,15 +279,28 @@ namespace CHelper::Test {
                 std::unique_ptr<CommandContext> full(core.createContext(u"/pblock " + *custom));
                 ASSERT_NE(full, nullptr);
                 EXPECT_TRUE(full->getErrorReasons().empty());
-                // 自定义方块属性状态带描述：/setblock ~ ~ ~ demo_machine[lit=false] 无错误
-                std::unique_ptr<CommandContext> states(core.createContext(u"/setblock ~ ~ ~ demo_machine[lit=false]"));
+                // 自定义方块：必须带命名空间前缀（demo:demo_machine）；短名 demo_machine 报错
+                std::unique_ptr<CommandContext> pref(core.createContext(u"/pblock demo:demo_machine"));
+                ASSERT_NE(pref, nullptr);
+                EXPECT_TRUE(pref->getErrorReasons().empty());
+                std::unique_ptr<CommandContext> plain(core.createContext(u"/pblock demo_machine"));
+                ASSERT_NE(plain, nullptr);
+                EXPECT_FALSE(plain->getErrorReasons().empty());
+                // 自定义方块属性状态带描述：前缀形式 /setblock ... demo:demo_machine[lit=false] 无错误
+                std::unique_ptr<CommandContext> states(core.createContext(u"/setblock ~ ~ ~ demo:demo_machine[lit=false]"));
                 ASSERT_NE(states, nullptr);
                 EXPECT_TRUE(states->getErrorReasons().empty());
-                // 真机验证等价路径：/setblock 不带状态、/give 使用自定义物品（合并进主包大表）
+                std::unique_ptr<CommandContext> statesPlain(core.createContext(u"/setblock ~ ~ ~ demo_machine[lit=false]"));
+                ASSERT_NE(statesPlain, nullptr);
+                EXPECT_FALSE(statesPlain->getErrorReasons().empty());
+                // 真机验证等价路径：前缀不带状态通过；/give 自定义物品（默认命名空间短名合法）
                 {
-                    std::unique_ptr<CommandContext> s1(core.createContext(u"/setblock ~ ~ ~ demo_machine"));
+                    std::unique_ptr<CommandContext> s1(core.createContext(u"/setblock ~ ~ ~ demo:demo_machine"));
                     ASSERT_NE(s1, nullptr);
                     EXPECT_TRUE(s1->getErrorReasons().empty());
+                    std::unique_ptr<CommandContext> s2(core.createContext(u"/setblock ~ ~ ~ demo_machine"));
+                    ASSERT_NE(s2, nullptr);
+                    EXPECT_FALSE(s2->getErrorReasons().empty());
                     std::unique_ptr<CommandContext> g1(core.createContext(u"/give @s custom_gadget"));
                     ASSERT_NE(g1, nullptr);
                     EXPECT_TRUE(g1->getErrorReasons().empty());
@@ -310,6 +327,29 @@ namespace CHelper::Test {
                 std::unique_ptr<CommandContext> full(core.createContext(u"/pitem " + *custom));
                 ASSERT_NE(full, nullptr);
                 EXPECT_TRUE(full->getErrorReasons().empty());
+            }
+            // 自定义实体（namespace 追加）：默认命名空间短名可用；demo 命名空间必须带前缀
+            {
+                std::unique_ptr<CommandContext> e(core.createContext(u"/pentity demo_guard"));
+                ASSERT_NE(e, nullptr);
+                EXPECT_TRUE(e->getErrorReasons().empty()); // 默认命名空间，短名合法
+                std::unique_ptr<CommandContext> pet(core.createContext(u"/pentity demo:demo_pet"));
+                ASSERT_NE(pet, nullptr);
+                EXPECT_TRUE(pet->getErrorReasons().empty()); // 带前缀合法
+                std::unique_ptr<CommandContext> petPlain(core.createContext(u"/pentity demo_pet"));
+                ASSERT_NE(petPlain, nullptr);
+                EXPECT_FALSE(petPlain->getErrorReasons().empty()); // demo 命名空间短名报错
+                // demo: 前缀下出带前缀候选且继承来源徽标
+                std::unique_ptr<CommandContext> sel(core.createContext(u"/pentity demo:"));
+                ASSERT_NE(sel, nullptr);
+                bool found = false;
+                for (const auto &s: sel->getSuggestions(sel->getCommand().size())) {
+                    if (s.content->name == u"demo:demo_pet") {
+                        found = true;
+                        EXPECT_EQ(s.content->packName.value_or(u""), u"测试资源包 A");
+                    }
+                }
+                EXPECT_TRUE(found);
             }
             // 内置 normal 表引用：/pgamemode survival 建议与整条无错误
             {

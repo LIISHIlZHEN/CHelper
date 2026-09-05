@@ -78,7 +78,9 @@ namespace CHelper::Linter {
             std::u16string_view str = astNode.tokens.string();
             XXH64_hash_t strHash = XXH3_64bits(str.data(), str.size() * sizeof(decltype(str)::value_type));
             if (std::ranges::all_of(*node.customContents, [&strHash](const auto &item) {
-                    return !item->fastMatch(strHash) && !item->getIdWithNamespace()->fastMatch(strHash);
+                    // 带命名空间条目必须写全名（demo:xxx）；仅默认命名空间可用短名
+                    return !item->getIdWithNamespace()->fastMatch(strHash) &&
+                           !(item->canOmitNamespace() && item->fastMatch(strHash));
                 })) [[unlikely]] {
                 errorReasons.push_back(ErrorReason::idError(astNode.tokens, fmt::format(u"找不到ID -> {}", str)));
             }
