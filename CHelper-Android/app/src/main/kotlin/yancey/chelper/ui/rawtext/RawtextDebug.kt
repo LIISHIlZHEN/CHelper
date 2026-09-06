@@ -108,7 +108,7 @@ class RawtextDebugState {
     val names = mutableStateListOf<String>()
     val counts = mutableStateListOf<String>()
 
-    /** 自定义布尔参数开关（selector/*.json 的自定义参数值为 true/false 时在此启停） */
+    /** 自定义布尔参数开关（选择器数据化参数值为 true/false 时在此启停） */
     val boolFlags = mutableStateListOf<String>()
     val hiddenSelectors = mutableStateListOf<String>()
     var distance: String by mutableStateOf("0")
