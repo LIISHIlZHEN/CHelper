@@ -328,6 +328,29 @@ namespace CHelper::Test {
                 ASSERT_NE(full, nullptr);
                 EXPECT_TRUE(full->getErrorReasons().empty());
             }
+            // 自定义实体（namespace 追加）：默认命名空间短名可用；demo 命名空间必须带前缀
+            {
+                std::unique_ptr<CommandContext> e(core.createContext(u"/pentity demo_guard"));
+                ASSERT_NE(e, nullptr);
+                EXPECT_TRUE(e->getErrorReasons().empty()); // 默认命名空间，短名合法
+                std::unique_ptr<CommandContext> pet(core.createContext(u"/pentity demo:demo_pet"));
+                ASSERT_NE(pet, nullptr);
+                EXPECT_TRUE(pet->getErrorReasons().empty()); // 带前缀合法
+                std::unique_ptr<CommandContext> petPlain(core.createContext(u"/pentity demo_pet"));
+                ASSERT_NE(petPlain, nullptr);
+                EXPECT_FALSE(petPlain->getErrorReasons().empty()); // demo 命名空间短名报错
+                // demo: 前缀下出带前缀候选且继承来源徽标
+                std::unique_ptr<CommandContext> sel(core.createContext(u"/pentity demo:"));
+                ASSERT_NE(sel, nullptr);
+                bool found = false;
+                for (const auto &s: sel->getSuggestions(sel->getCommand().size())) {
+                    if (s.content->name == u"demo:demo_pet") {
+                        found = true;
+                        EXPECT_EQ(s.content->packName.value_or(u""), u"测试资源包 A");
+                    }
+                }
+                EXPECT_TRUE(found);
+            }
             // 内置 normal 表引用：/pgamemode survival 建议与整条无错误
             {
                 std::unique_ptr<CommandContext> e(core.createContext(u"/pgamemode "));
