@@ -298,13 +298,7 @@ class CompletionViewModel(application: Application) : AndroidViewModel(applicati
                         return@withContext
                     }
                     // 先归还旧租约（段或包配置任一变化都要换内核），再挂新内核
-                    val oldSegment = heldSegment
-                    val oldFingerprint = heldFingerprint
-                    if (oldSegment != null &&
-                        (oldSegment != segment || oldFingerprint != fingerprint)
-                    ) {
-                        KernelCache.release(oldSegment, oldFingerprint ?: "")
-                    }
+                    releaseOldHeld(segment, fingerprint)
                     heldSegment = segment
                     heldFingerprint = fingerprint
                     this@CompletionViewModel.context?.close()
@@ -338,6 +332,18 @@ class CompletionViewModel(application: Application) : AndroidViewModel(applicati
         heldSegment = null
         heldFingerprint = null
         KernelCache.release(segment, fingerprint)
+    }
+
+    /**
+     * 换内核前归还旧租约：仅当旧配置（段/包指纹）与目标不同才需要释放；
+     * 相同则保留旧租约（缓存命中路径会直接复用内核）。
+     */
+    private fun releaseOldHeld(segment: String, fingerprint: String) {
+        val oldSegment = heldSegment ?: return
+        val oldFingerprint = heldFingerprint
+        if (oldSegment != segment || oldFingerprint != fingerprint) {
+            KernelCache.release(oldSegment, oldFingerprint ?: "")
+        }
     }
 
     fun onCopy(content: String) {
