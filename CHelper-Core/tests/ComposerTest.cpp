@@ -405,6 +405,41 @@ namespace CHelper::Test {
                 std::unique_ptr<CommandContext> self(core.createContext(u"/grant @a["));
                 ASSERT_NE(self, nullptr);
                 EXPECT_TRUE(hasSuggestion(*self, u"myflag"));
+                // 自定义变量/@x 与自定义参数名/myflag 的候选带来源徽标
+                {
+                    bool xFound = false;
+                    for (const auto &s: selv->getSuggestions(selv->getCommand().size())) {
+                        if (s.content->name == u"@x") {
+                            xFound = true;
+                            EXPECT_EQ(s.content->packName.value_or(u""), u"测试资源包 A");
+                        }
+                    }
+                    EXPECT_TRUE(xFound);
+                    bool keyFound = false;
+                    for (const auto &s: self->getSuggestions(self->getCommand().size())) {
+                        if (s.content->name == u"myflag") {
+                            keyFound = true;
+                            EXPECT_EQ(s.content->packName.value_or(u""), u"测试资源包 A");
+                        }
+                    }
+                    EXPECT_TRUE(keyFound);
+                }
+                // 命令补全的布尔值带中文说明（true=开（是），false=关（否））
+                {
+                    std::unique_ptr<CommandContext> v(core.createContext(u"/grant @a[myflag="));
+                    ASSERT_NE(v, nullptr);
+                    bool trueDesc = false;
+                    bool falseDesc = false;
+                    for (const auto &s: v->getSuggestions(v->getCommand().size())) {
+                        if (s.content->name == u"true") {
+                            trueDesc = s.content->description == u"开（是）";
+                        } else if (s.content->name == u"false") {
+                            falseDesc = s.content->description == u"关（否）";
+                        }
+                    }
+                    EXPECT_TRUE(trueDesc);
+                    EXPECT_TRUE(falseDesc);
+                }
             }
             // 一级补全来源（命令名候选带包名）：/we 的 welcome 候选来源 = 测试资源包 A
             {
