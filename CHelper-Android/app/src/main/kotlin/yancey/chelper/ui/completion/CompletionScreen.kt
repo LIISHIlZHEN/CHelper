@@ -84,7 +84,10 @@ import yancey.chelper.data.SettingsDataStore
 import yancey.chelper.ui.HistoryScreenKey
 import yancey.chelper.ui.LocalLibraryListScreenKey
 import yancey.chelper.ui.PublicLibraryListScreenKey
+import yancey.chelper.core.Suggestion
 import yancey.chelper.ui.common.CHelperTheme
+import yancey.chelper.ui.common.SuggestionUi.oneLineText
+import yancey.chelper.ui.common.SuggestionUi.sourceLabel
 import yancey.chelper.ui.common.layout.RootView
 import yancey.chelper.ui.common.widget.Icon
 import yancey.chelper.ui.common.widget.Text
@@ -340,20 +343,7 @@ fun CompletionScreen(
                                     val realIndex = listIndex - 1 - (if (jsonEntryActive) 1 else 0)
                                     val suggestionText =
                                         remember(viewModel.suggestionsUpdateTimes, realIndex, listIndex) {
-                                            val suggestion = viewModel.getSuggestion(realIndex)
-                                            if (suggestion == null) {
-                                                ""
-                                            } else {
-                                                val base = if (suggestion.description != null) {
-                                                    (suggestion.name
-                                                        ?: "") + " - " + suggestion.description!!
-                                                } else {
-                                                    suggestion.name ?: ""
-                                                }
-                                                // 来源标注：拓展包候选在其后追加"来自 XX"
-                                                val source = suggestion.packName?.takeIf { it.isNotBlank() }
-                                                if (source != null) "$base · 来自 $source" else base
-                                            }
+                                            viewModel.getSuggestion(realIndex)?.oneLineText().orEmpty()
                                         }
                                     Text(
                                         modifier = Modifier
@@ -383,56 +373,20 @@ fun CompletionScreen(
                                 )
                             } else {
                                 val realIndex = listIndex - (if (jsonEntryActive) 1 else 0)
-                                Column(
-                                    modifier = Modifier
-                                        .clickable(onClick = {
-                                            viewModel.onItemClick(realIndex)
-                                            viewModel.onSelectionChanged(
-                                                isCheckingBySelection,
-                                                isSyntaxHighlight,
-                                                isShowErrorReason
-                                            )
-                                        })
-                                        .padding(5.dp)
-                                ) {
-                                    val suggestion =
-                                        remember(viewModel.suggestionsUpdateTimes, realIndex, listIndex) {
-                                            viewModel.getSuggestion(realIndex)
-                                        }
-                                    suggestion?.name?.let {
-                                        Text(
-                                            text = it,
-                                            modifier = Modifier
-                                                .fillMaxWidth(),
-                                            style = TextStyle(
-                                                fontSize = 14.sp
-                                            )
+                                SuggestionDoubleLineRow(
+                                    suggestionProvider = { viewModel.getSuggestion(realIndex) },
+                                    updateTimes = viewModel.suggestionsUpdateTimes,
+                                    index = realIndex,
+                                    listIndex = listIndex,
+                                    onClick = {
+                                        viewModel.onItemClick(realIndex)
+                                        viewModel.onSelectionChanged(
+                                            isCheckingBySelection,
+                                            isSyntaxHighlight,
+                                            isShowErrorReason
                                         )
-                                    }
-                                    suggestion?.description?.let {
-                                        Text(
-                                            text = it,
-                                            modifier = Modifier
-                                                .fillMaxWidth(),
-                                            style = TextStyle(
-                                                color = CHelperTheme.colors.textSecondary,
-                                                fontSize = 14.sp
-                                            )
-                                        )
-                                    }
-                                    // 来源标注：拓展包候选在说明下方显示"来自 XX"
-                                    suggestion?.packName?.takeIf { it.isNotBlank() }?.let { source ->
-                                        Text(
-                                            text = "来自 $source",
-                                            modifier = Modifier
-                                                .fillMaxWidth(),
-                                            style = TextStyle(
-                                                color = CHelperTheme.colors.mainColorSecondary,
-                                                fontSize = 12.sp
-                                            )
-                                        )
-                                    }
-                                }
+                                    },
+                                )
                             }
                         }
                     }
@@ -691,5 +645,45 @@ fun CompletionScreenDarkThemePreview() {
         CompletionScreen(
             viewModel = viewModel
         )
+    }
+}
+
+/** 双行建议行：名字 + 说明 +（来源徽标）。点击整行应用该建议。 */
+@Composable
+private fun SuggestionDoubleLineRow(
+    suggestionProvider: () -> Suggestion?,
+    updateTimes: Int,
+    index: Int,
+    listIndex: Int,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(5.dp)
+    ) {
+        val suggestion = remember(updateTimes, index, listIndex) { suggestionProvider() }
+        suggestion?.name?.let {
+            Text(
+                text = it,
+                modifier = Modifier.fillMaxWidth(),
+                style = TextStyle(fontSize = 14.sp)
+            )
+        }
+        suggestion?.description?.let {
+            Text(
+                text = it,
+                modifier = Modifier.fillMaxWidth(),
+                style = TextStyle(color = CHelperTheme.colors.textSecondary, fontSize = 14.sp)
+            )
+        }
+        // 来源标注：拓展包候选在说明下方显示"来自 XX"（文案统一见 SuggestionUi）
+        suggestion?.sourceLabel()?.let { source ->
+            Text(
+                text = source,
+                modifier = Modifier.fillMaxWidth(),
+                style = TextStyle(color = CHelperTheme.colors.mainColorSecondary, fontSize = 12.sp)
+            )
+        }
     }
 }

@@ -18,27 +18,58 @@
 
 package yancey.chelper.ui.rawtext
 
-/** 补全建议 */
+import yancey.chelper.core.ClickSuggestionResult
+
+/**
+ * 字段补全建议（纯展示）：文本 + 说明。真正"应用"统一走 [RawtextSuggestions.apply]：
+ * 引擎字段由内核直接返回成品文本与光标；本地字段（记分板目标名）由闭包实现同一语义。
+ */
 data class RawtextSuggestion(
     val text: String,
-    val replace: String?,      // null = 仅提示（不可选）
     val hint: String = "",
     val hintOnly: Boolean = false,
-    val caretPos: Int? = null, // 应用后的光标位置（相对 replace）
-    val appendOnly: Boolean = false, // true = 在光标处追加，不替换已输入的前缀
-    val replaceFrom: Int? = null, // 替换起点（引擎建议区间；null = 沿用字段传入的起点）
 )
 
-/** 仅保留"记分板目标名"一项本地数据（来自文档/调试目标，内核不提供）；选择器/翻译补全统一走内核 */
+/** 一次补全查询的结果：候选列表 + 按序号应用（统一产出成品文本与光标，无手工拼串特判） */
+class RawtextSuggestions(
+    val items: List<RawtextSuggestion>,
+    private val applyAt: (Int) -> ClickSuggestionResult?,
+) {
+    fun apply(which: Int): ClickSuggestionResult? = applyAt(which)
+}
+
+/** 光标前正在输入的"词"（含中文/字母/数字/._）：返回 (词起点, 词前缀) */
+fun wordPrefixEnd(value: String, caret: Int): Pair<Int, String> {
+    val c = caret.coerceIn(0, value.length)
+    val before = value.substring(0, c)
+    val m = Regex("([\u4e00-\u9fa5a-zA-Z0-9_.]*)$").find(before)
+    val prefix = m?.groupValues?.get(1) ?: ""
+    return (c - prefix.length) to prefix
+}
+
+/** 仅保留"记分板目标名"一项本地数据（来自文档/调试目标，内核不提供） */
 object RawtextAutocomplete {
 
-    private fun hintOnly(text: String) = listOf(RawtextSuggestion(text, null, hintOnly = true))
+    private fun hintOnly(text: String) = listOf(RawtextSuggestion(text, hintOnly = true))
 
-    /** 记分板目标补全 */
-    fun objectiveSuggestions(prefix: String, targets: RawtextDebugTargets): List<RawtextSuggestion> {
-        val objs = (targets.condScores + targets.displayScores).sorted()
-        val list = objs.filter { it.startsWith(prefix) }.map { RawtextSuggestion(it, it, "记分板目标") }.toMutableList()
-        if (list.isEmpty()) list.addAll(hintOnly("输入记分板目标，如 kills / 金币"))
-        return list
+    /** 记分板目标补全：候选来自调试文档目标；应用 = 替换光标前输入词 */
+    fun objective(value: String, caret: Int, targets: RawtextDebugTargets): RawtextSuggestions {
+        val c = caret.coerceIn(0, value.length)
+        val (start, prefix) = wordPrefixEnd(value, caret)
+        val items = mutableListOf<RawtextSuggestion>()
+        (targets.condScores + targets.displayScores).sorted()
+            .filter { it.startsWith(prefix) }
+            .forEach { items.add(RawtextSuggestion(it, "记分板目标")) }
+        if (items.isEmpty()) {
+            items.addAll(hintOnly("输入记分板目标，如 kills / 金币"))
+        }
+        return RawtextSuggestions(items) { which ->
+            val name = items.getOrNull(which)?.text ?: return@RawtextSuggestions null
+            if (name.isEmpty()) return@RawtextSuggestions null
+            ClickSuggestionResult().apply {
+                text = value.substring(0, start.coerceIn(0, c)) + name + value.substring(c)
+                selection = start.coerceIn(0, c) + name.length
+            }
+        }
     }
 }

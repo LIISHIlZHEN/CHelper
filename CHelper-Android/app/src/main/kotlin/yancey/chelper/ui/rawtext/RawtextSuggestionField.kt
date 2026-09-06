@@ -56,14 +56,16 @@ import yancey.chelper.ui.common.CHelperTheme
 import yancey.chelper.ui.common.layout.Surface
 import yancey.chelper.ui.common.widget.Text
 
-/** 带自动补全的输入框：内联式下拉；点建议后保持焦点继续补全 */
+/** 带自动补全的输入框：内联式下拉；点建议后保持焦点继续补全。
+ *  补全统一为 [RawtextSuggestions]：候选只读展示，点选走 apply（引擎直接返回成品文本+光标）。 */
 @Composable
 fun RawtextSuggestionField(
     value: String,
     onChange: (String) -> Unit,
     placeholder: String = "",
     label: String = "",
-    suggest: (text: String, caret: Int) -> Pair<Int, List<RawtextSuggestion>> = { _, _ -> -1 to emptyList() },
+    suggest: (text: String, caret: Int) -> RawtextSuggestions =
+        { _, _ -> RawtextSuggestions(emptyList()) { null } },
     recomputeKey: Any? = null,
 ) {
     var tfv by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
@@ -78,31 +80,23 @@ fun RawtextSuggestionField(
     }
     // 补全缓存策略：只在【文本变化 / recomputeKey 变化 / 聚焦状态翻转】时重算
     // （remember 的 lambda 内读取 focused，自动建立订阅）；
-    // 纯光标移动（文本不变）直接复用上次结果，不做任何补全解析 —— 这是光标滑动
-    // 流畅的关键。下拉显示条件额外要求"光标仍停在计算时位置"：
-    // 拖选/滑动中下拉自动隐藏；光标停留中段不显示（中段敲字符 → 文本变化 → 按当前
-    // 光标重算并显示该位置补全）。
-    val (start, sugs, suggestionsForCaret) = remember(tfv.text, recomputeKey) {
+    // 纯光标移动（文本不变）直接复用上次结果，不做任何补全解析 —— 光标滑动流畅的关键。
+    // 下拉显示条件额外要求"光标仍停在计算时位置"（点选前文本未变，引擎序号可复用）。
+    val (suggestions, suggestionsForCaret) = remember(tfv.text, recomputeKey) {
         val caret = tfv.selection.start
         if (focused) {
-            val r = runCatching { suggest(tfv.text, caret) }.getOrElse { -1 to emptyList() }
-            Triple(r.first, r.second, caret)
+            val r = runCatching { suggest(tfv.text, caret) }
+                .getOrElse { RawtextSuggestions(emptyList()) { null } }
+            r to caret
         } else {
-            Triple(-1, emptyList<RawtextSuggestion>(), caret)
+            RawtextSuggestions(emptyList()) { null } to caret
         }
     }
 
-    fun applySuggestion(s: RawtextSuggestion) {
-        val replace = s.replace ?: return
-        val caret = tfv.selection.start.coerceIn(0, tfv.text.length)
-        // 替换起点：引擎建议自带区间优先；否则沿用字段计算起点（appendOnly = 光标处追加）
-        val s0 = s.replaceFrom
-            ?: (if (s.appendOnly) caret
-            else (if (start in 0..tfv.text.length) start else caret)).coerceIn(0, tfv.text.length)
-        val newText = tfv.text.substring(0, s0) + replace + tfv.text.substring(caret)
-        val pos = if (s.caretPos != null) s0 + s.caretPos else s0 + replace.length
-        tfv = TextFieldValue(newText, TextRange(pos.coerceIn(0, newText.length)))
-        onChange(newText)
+    fun applySuggestion(which: Int) {
+        val result = suggestions.apply(which) ?: return
+        tfv = TextFieldValue(result.text, TextRange(result.selection.coerceIn(0, result.text.length)))
+        onChange(result.text)
         focused = true
         scope.launch { focusRequester.requestFocus() }
     }
@@ -118,7 +112,6 @@ fun RawtextSuggestionField(
                 val textChanged = v.text != tfv.text
                 tfv = v
                 // 光标/选区移动不向上层通报：避免每个滑动事件触发整棵元素树 targets 重算
-                // （recomputeKey 变化会让所有字段的补全计算连锁重跑）
                 if (textChanged) {
                     onChange(v.text)
                 }
@@ -136,7 +129,7 @@ fun RawtextSuggestionField(
                 }
             },
         )
-        if (focused && tfv.selection.start == suggestionsForCaret && sugs.isNotEmpty()) {
+        if (focused && tfv.selection.start == suggestionsForCaret && suggestions.items.isNotEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 clipCornerSize = 10.dp,
@@ -144,7 +137,7 @@ fun RawtextSuggestionField(
                 verticalPadding = 0.dp,
             ) {
                 Column(Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())) {
-                    sugs.forEach { s ->
+                    suggestions.items.forEachIndexed { which, s ->
                         if (s.hintOnly) {
                             Text(
                                 s.text,
@@ -155,7 +148,7 @@ fun RawtextSuggestionField(
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .clickable { applySuggestion(s) }
+                                    .clickable { applySuggestion(which) }
                                     .padding(horizontal = 12.dp, vertical = 4.dp),
                             ) {
                                 Column {
@@ -173,7 +166,7 @@ fun RawtextSuggestionField(
     }
 }
 
-/** 选择器自动补全（统一走共享内核 FragmentContext） */
+/** 选择器自动补全（统一走共享内核） */
 @Composable
 fun RawtextSelectorField(
     value: String,
@@ -211,7 +204,7 @@ fun RawtextKeyField(
     )
 }
 
-/** 记分板目标补全 */
+/** 记分板目标补全（唯一保留的本地数据：来自文档/调试目标） */
 @Composable
 fun RawtextObjectiveField(
     value: String,
@@ -225,11 +218,7 @@ fun RawtextObjectiveField(
         label = label,
         placeholder = "如 金币（自动补全文档中的目标）",
         suggest = { text, caret ->
-            val before = text.substring(0, caret.coerceIn(0, text.length))
-            val m = Regex("([\u4e00-\u9fa5a-zA-Z0-9_.]*)$").find(before)
-            val prefix = m?.groupValues?.get(1) ?: ""
-            val start = caret - prefix.length
-            start to RawtextAutocomplete.objectiveSuggestions(prefix, targets)
+            RawtextAutocomplete.objective(text, caret, targets)
         },
         recomputeKey = targets,
     )
