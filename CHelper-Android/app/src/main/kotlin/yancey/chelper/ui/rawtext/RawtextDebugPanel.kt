@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -78,6 +79,31 @@ fun RawtextDebugScreen(viewModel: RawtextViewModel, targets: RawtextDebugTargets
             if (targets.families.isNotEmpty()) item { RawtextGroupCard(stringResource(R.string.layout_rawtext_debug_families)) { RawtextToggleGroup(targets.families.sorted(), dbg.families, onTouch) } }
             if (targets.names.isNotEmpty()) item { RawtextGroupCard(stringResource(R.string.layout_rawtext_debug_names)) { RawtextToggleGroup(targets.names.sorted(), dbg.names, onTouch) } }
             if (targets.counts.isNotEmpty()) item { RawtextGroupCard(stringResource(R.string.layout_rawtext_debug_counts)) { RawtextToggleGroup(targets.counts.sorted(), dbg.counts, onTouch, prefix = "c=") } }
+            if (targets.boolFlags.isNotEmpty()) {
+                item {
+                    RawtextGroupCard("自定义开关") {
+                        targets.boolFlags.sorted().forEach { k ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = k,
+                                    modifier = Modifier.weight(1f),
+                                    style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = CHelperTheme.colors.textMain),
+                                )
+                                Switch(
+                                    checked = dbg.boolFlags.contains(k),
+                                    onCheckedChange = { on ->
+                                        if (on) dbg.boolFlags.add(k) else dbg.boolFlags.remove(k)
+                                        onTouch()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             if (targets.gms.isNotEmpty()) {
                 item {
                     RawtextGroupCard(stringResource(R.string.layout_rawtext_debug_gamemode)) {

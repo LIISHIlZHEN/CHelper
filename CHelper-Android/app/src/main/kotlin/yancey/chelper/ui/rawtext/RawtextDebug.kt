@@ -107,6 +107,9 @@ class RawtextDebugState {
     val families = mutableStateListOf<String>()
     val names = mutableStateListOf<String>()
     val counts = mutableStateListOf<String>()
+
+    /** 自定义布尔参数开关（selector/*.json 的自定义参数值为 true/false 时在此启停） */
+    val boolFlags = mutableStateListOf<String>()
     val hiddenSelectors = mutableStateListOf<String>()
     var distance: String by mutableStateOf("0")
     var level: String by mutableStateOf("0")
@@ -132,6 +135,7 @@ class RawtextDebugState {
         families.clear(); families.addAll(snapshot.families)
         names.clear(); names.addAll(snapshot.names)
         counts.clear(); counts.addAll(snapshot.counts)
+        boolFlags.clear(); boolFlags.addAll(snapshot.boolFlags)
         hiddenSelectors.clear(); hiddenSelectors.addAll(snapshot.hiddenSelectors)
         distance = snapshot.distance
         level = snapshot.level
@@ -156,6 +160,7 @@ data class RawtextDebugSnapshot(
     val families: Set<String> = emptySet(),
     val names: Set<String> = emptySet(),
     val counts: Set<String> = emptySet(),
+    val boolFlags: Set<String> = emptySet(),
     val hiddenSelectors: Set<String> = emptySet(),
     val distance: String = "0",
     val level: String = "0",
@@ -177,6 +182,7 @@ data class RawtextDebugSnapshot(
         s.families.addAll(families)
         s.names.addAll(names)
         s.counts.addAll(counts)
+        s.boolFlags.addAll(boolFlags)
         s.hiddenSelectors.addAll(hiddenSelectors)
         s.distance = distance
         s.level = level
@@ -200,6 +206,7 @@ data class RawtextDebugSnapshot(
             families = state.families.toSet(),
             names = state.names.toSet(),
             counts = state.counts.toSet(),
+            boolFlags = state.boolFlags.toSet(),
             hiddenSelectors = state.hiddenSelectors.toSet(),
             distance = state.distance,
             level = state.level,
@@ -226,6 +233,7 @@ data class RawtextDebugTargets(
     val families: Set<String> = emptySet(),
     val names: Set<String> = emptySet(),
     val counts: Set<String> = emptySet(),
+    val boolFlags: Set<String> = emptySet(),
     val hasDist: Boolean = false,
     val hasLevel: Boolean = false,
     val hasPos: Boolean = false,
@@ -366,6 +374,15 @@ object RawtextDebugEngine {
                     val lv = dbg.level.toDoubleOrNull() ?: return false
                     if (lv < (a.value.toDoubleOrNull() ?: 0.0)) return false
                 }
+
+                // 自定义布尔参数：按调试开关（boolFlags 命中=开）参与命中
+                else -> {
+                    val b = a.value.trim()
+                    if (b != "true" && b != "false") continue
+                    val on = dbg.boolFlags.contains(a.key)
+                    val matched = if (b == "true") on else !on
+                    if (if (a.negate) matched else !matched) return false
+                }
             }
         }
         return true
@@ -381,6 +398,7 @@ object RawtextDebugEngine {
         val families = mutableSetOf<String>()
         val names = mutableSetOf<String>()
         val counts = mutableSetOf<String>()
+        val boolFlags = mutableSetOf<String>()
         var hasDist = false
         var hasLevel = false
         var hasPos = false
@@ -412,6 +430,11 @@ object RawtextDebugEngine {
                 "l", "lm" -> acc.hasLevel = true
                 "x", "y", "z", "dx", "dy", "dz" -> acc.hasPos = true
                 "rx", "rxm", "ry", "rym" -> acc.hasRot = true
+                // 未知参数值为 true/false → 视为自定义布尔参数开关
+                else -> {
+                    val v = a.value.trim()
+                    if (v == "true" || v == "false") acc.boolFlags.add(a.key)
+                }
             }
         }
     }
@@ -465,6 +488,7 @@ object RawtextDebugEngine {
             families = acc.families.toSet(),
             names = acc.names.toSet(),
             counts = acc.counts.toSet(),
+            boolFlags = acc.boolFlags.toSet(),
             hasDist = acc.hasDist,
             hasLevel = acc.hasLevel,
             hasPos = acc.hasPos,
