@@ -208,14 +208,8 @@ namespace CHelper::Extension {
             }
         }
 
-        // selector/*.json V1（数据化）：内置变量/参数名镜像（与 CommandNode.cpp 默认表保持同步，
-        // 仅用于合成期冲突校验——内置保留变量整包拒绝、内置参数同名先到先得忽略）
-        constexpr std::u16string_view builtinSelectorVariables[] = {
-                u"@e", u"@a", u"@r", u"@p", u"@s", u"@n", u"@initiator"};
-        constexpr std::u16string_view builtinSelectorArguments[] = {
-                u"x", u"y", u"z", u"r", u"rm", u"dx", u"dy", u"dz", u"scores", u"tag", u"name",
-                u"type", u"family", u"rx", u"rxm", u"ry", u"rym", u"hasitem", u"haspermission",
-                u"has_property", u"l", u"lm", u"m", u"c"};
+        // selector/*.json V1（数据化）：内置变量/参数名单单一来源 = 引擎导出
+        // （TargetSelectorData::builtinVariableNames/builtinArgumentNames），勿在本文件复制文字表
         constexpr std::u16string_view supportedSelectorValueTypes[] = {
                 u"BOOLEAN", u"INTEGER", u"FLOAT", u"RELATIVE_FLOAT", u"STRING", u"RANGE",
                 u"NORMAL_ID", u"NAMESPACE_ID"};
@@ -322,6 +316,9 @@ namespace CHelper::Extension {
         // 汇总多个 selector 文件到 builder：同 id 后文件覆盖前文件；变量/参数名冲突先到先得
         void flattenSelectors(CPackBuilder &builder, std::vector<LoadedSelector> &files,
                               std::vector<std::string> &warnings) {
+            // 内置名单（单一来源：引擎导出；保留变量整包拒绝、内置参数先到先得忽略）
+            const auto reservedVariables = Node::TargetSelectorData::builtinVariableNames();
+            const auto reservedArguments = Node::TargetSelectorData::builtinArgumentNames();
             std::unordered_map<std::string, size_t> lastById;
             for (size_t i = 0; i < files.size(); ++i) {
                 lastById[files[i].id] = i;
@@ -334,14 +331,7 @@ namespace CHelper::Extension {
             }
             for (auto &file: merged) {
                 for (auto &v: file.variables) {
-                    bool reserved = false;
-                    for (const auto &b: builtinSelectorVariables) {
-                        if (v.name == b) {
-                            reserved = true;
-                            break;
-                        }
-                    }
-                    if (reserved) {
+                    if (std::ranges::find(reservedVariables, v.name) != reservedVariables.end()) {
                         throw std::runtime_error("selector variable " + utf8::utf16to8(v.name) +
                                                  " conflicts with builtin selector variable (整包拒绝)");
                     }
@@ -359,14 +349,7 @@ namespace CHelper::Extension {
             }
             for (auto &file: merged) {
                 for (auto &a: file.arguments) {
-                    bool reserved = false;
-                    for (const auto &b: builtinSelectorArguments) {
-                        if (a.name == b) {
-                            reserved = true;
-                            break;
-                        }
-                    }
-                    if (reserved) {
+                    if (std::ranges::find(reservedArguments, a.name) != reservedArguments.end()) {
                         warnings.emplace_back("selector 参数 " + utf8::utf16to8(a.name) + " 与内置参数同名，已忽略（先到先得）");
                         continue;
                     }

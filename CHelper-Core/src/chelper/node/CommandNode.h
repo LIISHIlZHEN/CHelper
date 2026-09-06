@@ -536,6 +536,12 @@ namespace CHelper {
             TargetSelectorData();
 
             void init(const CPack &cpack);
+
+            /** 内置选择器变量名（含 @ 前缀；与合成器冲突校验共用，单一来源见 CommandNode.cpp） */
+            static std::vector<std::u16string> builtinVariableNames();
+
+            /** 内置选择器参数名（与合成器冲突校验共用，单一来源见 CommandNode.cpp） */
+            static std::vector<std::u16string> builtinArgumentNames();
         };
 
         // selector/*.json V1 数据化：拓展包声明的自定义变量/参数（仅内存态，不落二进制）。

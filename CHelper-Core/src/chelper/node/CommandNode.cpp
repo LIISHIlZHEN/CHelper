@@ -135,6 +135,17 @@ namespace CHelper::Node {
           canContainSpace(canContainSpace),
           ignoreLater(ignoreLater) {}
 
+    // 内置选择器变量/参数名单（单一来源：合成器冲突校验也走这两个函数，勿直接复制文字表）
+    std::vector<std::u16string> TargetSelectorData::builtinVariableNames() {
+        return {u"@e", u"@a", u"@r", u"@p", u"@s", u"@n", u"@initiator"};
+    }
+
+    std::vector<std::u16string> TargetSelectorData::builtinArgumentNames() {
+        return {u"x", u"y", u"z", u"r", u"rm", u"dx", u"dy", u"dz", u"scores", u"tag", u"name",
+                u"type", u"family", u"rx", u"rxm", u"ry", u"rym", u"hasitem", u"haspermission",
+                u"has_property", u"l", u"lm", u"m", u"c"};
+    }
+
     NodeString TargetSelectorData::nodePlayerName("TARGET_SELECTOR_PLAYER_NAME", u"玩家名字", false, true, false);
     NodeSingleSymbol TargetSelectorData::nodeWildcard(u'*', u"所有正被记分板跟踪的实体");
     NodeSingleSymbol TargetSelectorData::nodeSeparator(u',', u"目标选择器参数分隔符");
