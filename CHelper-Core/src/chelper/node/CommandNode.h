@@ -543,6 +543,8 @@ namespace CHelper {
         struct SelectorPackVariable {
             std::u16string name;                                    // 含 @ 前缀（如 @x）
             std::optional<std::u16string> description;
+            /** 来源包名（内存态；供变量候选来源徽标） */
+            std::optional<std::u16string> packName;
         };
 
         struct SelectorPackArgument {
@@ -553,6 +555,8 @@ namespace CHelper {
             std::optional<std::string> key;                         // ID 类值类型引用的候选表
             std::shared_ptr<std::vector<std::shared_ptr<NormalId>>> normalContents;      // NORMAL_ID 内联候选
             std::shared_ptr<std::vector<std::shared_ptr<NamespaceId>>> namespaceContents; // NAMESPACE_ID 内联候选
+            /** 来源包名（内存态；供参数名候选来源徽标） */
+            std::optional<std::u16string> packName;
         };
 
         class NodeTargetSelector : public NodeSerializable {

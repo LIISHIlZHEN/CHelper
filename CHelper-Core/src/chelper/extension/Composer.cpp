@@ -228,7 +228,8 @@ namespace CHelper::Extension {
 
         // 解析单个 selector/*.json 并做结构校验（内容不合法 → 整包拒绝）
         LoadedSelector parseSelectorFile(const std::vector<uint8_t> &bytes, const std::string &rel,
-                                         std::vector<std::string> &warnings) {
+                                         std::vector<std::string> &warnings,
+                                         const std::u16string &packName) {
             JsonDoc doc;
             if (!parseDoc(bytes, doc)) {
                 throw std::runtime_error("invalid selector file: " + rel);
@@ -252,6 +253,7 @@ namespace CHelper::Extension {
                     }
                     Node::SelectorPackVariable variable;
                     variable.name = utf8::utf8to16(name);
+                    variable.packName = packName; // 来源徽标（同包新增变量）
                     const std::string description = getString(v, "description");
                     if (!description.empty()) {
                         variable.description = utf8::utf8to16(description);
@@ -284,6 +286,7 @@ namespace CHelper::Extension {
                     argument.description = utf8::utf8to16(description);
                     const std::string op = getString(a, "operator");
                     argument.canUseNotEqual = op.find('!') != std::string::npos;
+                    argument.packName = packName; // 来源徽标（同包新增参数）
                     const std::string vt = getString(a, "valueType");
                     if (vt.empty()) {
                         throw std::runtime_error("selector argument missing valueType in " + rel + " (" + name + ")");
@@ -569,7 +572,7 @@ namespace CHelper::Extension {
                 } else if (startsWithIgnoreCase(rel, "extensions/")) {
                     applyExecuteFragment(builder, *f.bytes, result.warnings);
                 } else if (startsWithIgnoreCase(rel, "selector/")) {
-                    selectorFiles.push_back(parseSelectorFile(*f.bytes, rel, result.warnings));
+                    selectorFiles.push_back(parseSelectorFile(*f.bytes, rel, result.warnings, packName));
                 }
                 // 其它（text/ 等数据文件）忽略
             }
