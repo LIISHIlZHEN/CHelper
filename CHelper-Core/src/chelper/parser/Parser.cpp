@@ -169,6 +169,9 @@ namespace CHelper::Parser {
                     const Node::NodeWithType &mainNode) {
         auto convertResult = JsonUtil::jsonString2String(content);
         if (convertResult.errorReason != nullptr) [[unlikely]] {
+            //jsonString2String返回的错误位置是相对content的坐标，转换成命令里的绝对坐标
+            convertResult.errorReason->start += tokens.startIndex;
+            convertResult.errorReason->end += tokens.startIndex;
             return {ASTNode::simpleNode(node, tokens, convertResult.errorReason), std::move(convertResult)};
         }
 #ifdef CHelperTest
@@ -201,12 +204,15 @@ namespace CHelper::Parser {
             if (!node.data.has_value() || node.data->nodes.empty()) [[likely]] {
                 return ASTNode::simpleNode(node, tokens, errorReason);
             }
-            ASTNode innerNode = getInnerASTNode(node, tokens, str, node.nodeData).first;
+            std::pair<ASTNode, JsonUtil::ConvertResult> innerResult = getInnerASTNode(node, tokens, str, node.nodeData);
+            ASTNode innerNode = std::move(innerResult.first);
+            //内层AST的位置是解码后字符串的坐标，原始JSON字符串里的转义序列(\n \" \\ \uXXXX等)
+            //会让内外坐标不再相差固定偏移，必须用indexConvertList换算回原始命令的坐标
             ASTNode newResult = ASTNode::andNode(node, {std::move(innerNode)}, tokens, errorReason, ASTNodeId::NODE_STRING_INNER);
-            if (errorReason == nullptr) [[unlikely]] {
+            if (errorReason == nullptr && innerResult.second.errorReason == nullptr) {
                 for (auto &item: newResult.errorReasons) {
-                    item->start += tokens.startIndex;
-                    item->end += tokens.startIndex;
+                    item->start = innerResult.second.convert(item->start) + tokens.startIndex;
+                    item->end = innerResult.second.convert(item->end) + tokens.startIndex;
                 }
             }
             return newResult;
@@ -612,15 +618,21 @@ namespace CHelper::Parser {
             tokenReader.push();
             std::vector<ASTNode> childNodes;
             while (true) {
+                //记录本次迭代的起始位置，防止element解析成功但没有消费任何token导致死循环
+                const size_t iterationStartIndex = tokenReader.index;
                 ASTNode orNode = parse(node.nodeElement, tokenReader);
                 bool isAstNodeError = orNode.childNodes[0].isError();
                 bool isBreakAstNodeError = orNode.childNodes[1].isError();
-                if (!isBreakAstNodeError || isAstNodeError ||
-                    (!tokenReader.ready() && node.repeatData->isEnd[orNode.childNodes[0].whichBest])) [[unlikely]] {
-                    childNodes.push_back(std::move(orNode));
+                //isEnd的查找要在orNode被move之前完成
+                bool isEnd = node.repeatData->isEnd[orNode.childNodes[0].whichBest];
+                childNodes.push_back(std::move(orNode));
+                if (!isBreakAstNodeError || isAstNodeError || (!tokenReader.ready() && isEnd)) [[unlikely]] {
                     return ASTNode::andNode(node, std::move(childNodes), tokenReader.collect(), nullptr);
                 }
-                childNodes.push_back(std::move(orNode));
+                if (tokenReader.index == iterationStartIndex) [[unlikely]] {
+                    //element没有消费任何token，继续循环只会无限重复相同的结果
+                    return ASTNode::andNode(node, std::move(childNodes), tokenReader.collect(), nullptr);
+                }
             }
         }
     };
@@ -979,6 +991,13 @@ namespace CHelper::Parser {
     };
 
     ASTNode parse(const Node::NodeWithType &node, TokenReader &tokenReader) {
+#ifdef CHelperDebug
+        //正常情况下data不会为nullptr，未正确初始化的节点应当在CPack加载阶段被拦截，
+        //这里是Debug模式下的最后一道防线，防止分发到nullptr的节点数据
+        if (node.data == nullptr) [[unlikely]] {
+            throw std::runtime_error("node data is null");
+        }
+#endif
         switch (node.nodeTypeId) {
             CODEC_PASTE(CHELPER_GET_AST_NODE, CHELPER_NODE_TYPES)
             default:

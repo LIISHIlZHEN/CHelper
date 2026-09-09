@@ -22,6 +22,13 @@
 namespace CHelper::JsonUtil {
 
     size_t ConvertResult::convert(size_t index) const {
+#ifdef CHelperDebug
+        //indexConvertList的大小是解码后字符串长度+1(最后一个映射到结束引号/字符串末尾)，
+        //正常情况下index不会越界，越界说明内层AST的坐标换算出了问题，Debug模式下直接抛出异常定位
+        if (index >= indexConvertList.size()) [[unlikely]] {
+            throw std::runtime_error("index out of range in ConvertResult::convert");
+        }
+#endif
         return indexConvertList[index];
     }
 
@@ -35,16 +42,36 @@ namespace CHelper::JsonUtil {
             }
             char16_t ch = *it;
             switch (ch) {
+                case u'\0':
+                    //U+0000也是控制字符，RFC 8259要求必须转义
+                    result.append(u"\\u0000");
+                    ++it;
+                    continue;
                 case u'\"':
                 case u'\\':
                 case u'/':
-                case u'\b':
-                case u'\f':
-                case u'\n':
-                case u'\r':
-                case u'\t':
                     result.push_back(u'\\');
                     break;
+                case u'\b':
+                    result.append(u"\\b");
+                    ++it;
+                    continue;
+                case u'\f':
+                    result.append(u"\\f");
+                    ++it;
+                    continue;
+                case u'\n':
+                    result.append(u"\\n");
+                    ++it;
+                    continue;
+                case u'\r':
+                    result.append(u"\\r");
+                    ++it;
+                    continue;
+                case u'\t':
+                    result.append(u"\\t");
+                    ++it;
+                    continue;
                 default:
                     break;
             }
@@ -95,12 +122,22 @@ namespace CHelper::JsonUtil {
                     case u'\"':
                     case u'\\':
                     case u'/':
-                    case u'b':
-                    case u'f':
-                    case u'n':
-                    case u'r':
-                    case u't':
                         result.result.push_back(ch);
+                        break;
+                    case u'b':
+                        result.result.push_back(u'\b');
+                        break;
+                    case u'f':
+                        result.result.push_back(u'\f');
+                        break;
+                    case u'n':
+                        result.result.push_back(u'\n');
+                        break;
+                    case u'r':
+                        result.result.push_back(u'\r');
+                        break;
+                    case u't':
+                        result.result.push_back(u'\t');
                         break;
                     case u'u':
                         index += 4;
@@ -111,10 +148,15 @@ namespace CHelper::JsonUtil {
                                     fmt::format(u"字符串转义缺失后半部分 -> \\u{}", escapeSequence));
                             break;
                         }
-                        escapeSequence = input.substr(index - 4, 4);
+                        escapeSequence = input.substr(index - 3, 4);
+                        //不能用std::isxdigit，char16_t的值超过unsigned char范围时是未定义行为
                         if (std::ranges::any_of(escapeSequence,
                                                 [&result, &index, &escapeSequence](const auto &item) {
-                                                    if (std::isxdigit(item)) [[likely]] {
+                                                    const bool isHexDigit =
+                                                            (item >= u'0' && item <= u'9') ||
+                                                            (item >= u'a' && item <= u'f') ||
+                                                            (item >= u'A' && item <= u'F');
+                                                    if (isHexDigit) [[likely]] {
                                                         return false;
                                                     } else {
                                                         result.errorReason = ErrorReason::incomplete(
@@ -127,7 +169,7 @@ namespace CHelper::JsonUtil {
                             break;
                         }
                         unicodeValue = std::stoi(utf8::utf16to8(escapeSequence), nullptr, 16);
-                        if (unicodeValue <= 0 || unicodeValue > 0x10FFFF) [[unlikely]] {
+                        if (unicodeValue < 0 || unicodeValue > 0x10FFFF) [[unlikely]] {
                             result.errorReason = ErrorReason::contentError(
                                     index - 5, index + 1,
                                     fmt::format(u"字符串转义的Unicode值无效 -> \\u{}", escapeSequence));

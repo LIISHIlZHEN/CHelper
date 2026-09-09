@@ -74,7 +74,9 @@ namespace CHelper::Node {
 
     class NodeWithType {
     public:
-        NodeTypeId::NodeTypeId nodeTypeId;
+        //默认值只是一个占位，默认构造的NodeWithType的data是nullptr，
+        //Parser::parse会在访问data之前检查nullptr，因此未初始化的nodeTypeId不会被使用
+        NodeTypeId::NodeTypeId nodeTypeId = NodeTypeId::WRAPPED;
         NodeBase *data = nullptr;
 
         NodeWithType() = default;

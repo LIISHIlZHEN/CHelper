@@ -197,12 +197,15 @@ namespace CHelper::AutoSuggestion {
                         namespaceContain.push_back(item->getIdWithNamespace());
                     }
                     //省略minecraft命名空间
-                    constexpr size_t defaultNamespaceSize = std::size(u"minecraft");
-                    constexpr size_t defaultNamespacePrefixSize = std::size(u"minecraft:");
-                    if (!item->idNamespace.has_value() || (item->idNamespace.value().size() == defaultNamespaceSize && item->idNamespace.value() == u"minecraft")) [[likely]] {
-                        if (index1 == defaultNamespacePrefixSize) [[unlikely]] {
+                    //注意std::size(u"minecraft")包含结尾的'\0'，长度必须从字符串视图获取；
+                    //先比较size再比较内容，Debug下比直接比较更快
+                    constexpr std::u16string_view defaultNamespace = u"minecraft";
+                    constexpr std::u16string_view defaultNamespacePrefix = u"minecraft:";
+                    if (!item->idNamespace.has_value() ||
+                        (item->idNamespace.value().size() == defaultNamespace.size() && item->idNamespace.value() == defaultNamespace)) [[likely]] {
+                        if (index1 == defaultNamespacePrefix.size()) [[unlikely]] {
                             nameStartOf.push_back(item);
-                        } else if (index1 > defaultNamespacePrefixSize) [[unlikely]] {
+                        } else if (index1 > defaultNamespacePrefix.size()) [[unlikely]] {
                             nameContain.push_back(item);
                         } else {
                             size_t index2 = kmpMatcher.match(item->name);
@@ -417,7 +420,9 @@ namespace CHelper::AutoSuggestion {
     struct AutoSuggestion<Node::NodeJsonNull> {
         static bool collectSuggestions(const ASTNode &astNode, size_t index, Suggestions &suggestions) {
             std::u16string_view str = astNode.tokens.string().substr(0, index - astNode.tokens.startIndex);
-            if (str.find(u"null") != std::u16string::npos) [[likely]] {
+            //只有当前输入是null的前缀时才建议null，输入u、ul等非前缀内容时不建议
+            constexpr std::u16string_view nullLiteral = u"null";
+            if (str.size() <= nullLiteral.size() && nullLiteral.substr(0, str.size()) == str) [[likely]] {
                 suggestions.addLiteralSuggestion({astNode.tokens, false, NormalId::make(u"null", u"null参数")});
             }
             return true;

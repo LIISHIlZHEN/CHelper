@@ -177,7 +177,7 @@ namespace CHelper::Old2New {
             return blockId;
         }
         // get key
-        std::u16string front = u"minecraft:";
+        constexpr std::u16string_view front = u"minecraft:";
         std::u16string key = trip(blockId);
         if (key.size() > front.size() && key.starts_with(front)) {
             key = key.substr(front.size());
@@ -194,7 +194,8 @@ namespace CHelper::Old2New {
         }
         const auto &blockIdWithBlockState = dataValueIter->second;
         if (blockIdWithBlockState.first.has_value()) {
-            return front + blockIdWithBlockState.first.value() + blockIdWithBlockState.second.value_or(u"");
+            //front是string_view，没有operator+，需要先构造u16string再拼接
+            return std::u16string(front) + blockIdWithBlockState.first.value() + blockIdWithBlockState.second.value_or(u"");
         } else {
             return blockIdWithBlockState.first.value_or(blockId) + blockIdWithBlockState.second.value_or(u"");
         }

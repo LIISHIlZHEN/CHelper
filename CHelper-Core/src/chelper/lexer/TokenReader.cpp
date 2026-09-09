@@ -20,6 +20,51 @@
 
 namespace CHelper {
 
+    namespace {
+
+        //整数格式: [+-]?[0-9]+
+        bool isIntegerFormat(const std::u16string_view &str) {
+            size_t i = 0;
+            if (i < str.size() && (str[i] == u'+' || str[i] == u'-')) [[likely]] {
+                ++i;
+            }
+            if (i >= str.size()) [[unlikely]] {
+                return false;
+            }
+            for (; i < str.size(); ++i) {
+                if (str[i] < u'0' || str[i] > u'9') [[unlikely]] {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        //小数格式: [+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)
+        bool isFloatFormat(const std::u16string_view &str) {
+            size_t i = 0;
+            if (i < str.size() && (str[i] == u'+' || str[i] == u'-')) [[likely]] {
+                ++i;
+            }
+            size_t integerDigits = 0;
+            while (i < str.size() && str[i] >= u'0' && str[i] <= u'9') [[likely]] {
+                ++i;
+                ++integerDigits;
+            }
+            if (i < str.size() && str[i] == u'.') [[unlikely]] {
+                ++i;
+                size_t fractionDigits = 0;
+                while (i < str.size() && str[i] >= u'0' && str[i] <= u'9') [[likely]] {
+                    ++i;
+                    ++fractionDigits;
+                }
+                //"."、"+."、"-"这种只有符号和小数点的不是合法数字
+                return integerDigits + fractionDigits > 0 && i == str.size();
+            }
+            return integerDigits > 0 && i == str.size();
+        }
+
+    }// namespace
+
     TokenReader::TokenReader(const std::shared_ptr<LexerResult> &lexerResult)
         : lexerResult(lexerResult) {}
 
@@ -147,11 +192,13 @@ namespace CHelper {
         return readSimpleASTNode(
                 node, TokenType::NUMBER, u"整数类型", astNodeId,
                 [](const std::u16string_view &str, const TokensView &tokens) -> std::shared_ptr<ErrorReason> {
-                    for (const auto &ch: str) {
-                        if (ch == '.') [[unlikely]] {
-                            return ErrorReason::contentError(
-                                    tokens, u"类型不匹配，正确的参数类型为整数，但当前参数类型为小数");
-                        }
+                    if (str.find(u'.') != std::u16string_view::npos) [[unlikely]] {
+                        return ErrorReason::contentError(
+                                tokens, u"类型不匹配，正确的参数类型为整数，但当前参数类型为小数");
+                    }
+                    //lexer会吞掉连续的0-9 . + -，这里必须校验完整的数字格式，防止1-2、1--2这类内容被当成合法数字
+                    if (!isIntegerFormat(str)) [[unlikely]] {
+                        return ErrorReason::contentError(tokens, fmt::format(u"数字格式错误 -> {}", str));
                     }
                     return nullptr;
                 });
@@ -162,15 +209,8 @@ namespace CHelper {
         return readSimpleASTNode(
                 node, TokenType::NUMBER, u"数字类型", astNodeId,
                 [](const std::u16string_view &str, const TokensView &tokens) -> std::shared_ptr<ErrorReason> {
-                    bool isHavePoint = false;
-                    for (const auto &ch: str) {
-                        if (ch != '.') [[likely]] {
-                            continue;
-                        }
-                        if (isHavePoint) [[unlikely]] {
-                            return ErrorReason::contentError(tokens, u"数字格式错误");
-                        }
-                        isHavePoint = true;
+                    if (!isFloatFormat(str)) [[unlikely]] {
+                        return ErrorReason::contentError(tokens, fmt::format(u"数字格式错误 -> {}", str));
                     }
                     return nullptr;
                 });

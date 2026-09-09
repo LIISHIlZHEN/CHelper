@@ -46,6 +46,12 @@ namespace CHelper {
     private:
         Node::FreeableNodeWithTypes cacheNodes;
 
+        /**
+         * 在CPack初始化完成、Parser使用之前，集中校验CPack的结构不变量，
+         * 非法数据在这里fail-fast，而不是进入Parser导致越界/空指针/未定义行为
+         */
+        void validate() const;
+
     public:
 #ifndef CHELPER_NO_FILESYSTEM
         explicit CPack(const std::filesystem::path &path);

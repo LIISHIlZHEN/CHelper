@@ -68,6 +68,13 @@ namespace CHelper {
                             const TokensView *tokens,
                             const char16_t *errorReason,
                             const ASTNodeId::ASTNodeId &id) {
+#ifdef CHelperDebug
+        //正常情况下OR节点不会有空的子节点，非法CPack数据应当在加载阶段被CPack::validate拦截，
+        //这里是Debug模式下的最后一道防线，防止访问childNodes[whichBest]时越界
+        if (childNodes.empty()) [[unlikely]] {
+            throw std::runtime_error("OR node must have at least one child node");
+        }
+#endif
         // 收集错误的节点数，如果有节点没有错就设为0
         size_t errorCount = 0;
         for (const auto &item: childNodes) {

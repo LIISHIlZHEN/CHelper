@@ -251,12 +251,38 @@ namespace CHelper {
             Node::initNode(item, *this);
         }
         Profile::next("sort command nodes");
+        validate();
         std::ranges::sort(*commands, [](const auto &item1, const auto &item2) {
             return item1.name[0] < item2.name[0];
         });
         Profile::next("create main node");
         mainNode = Node::NodeCommand("MAIN_NODE", u"欢迎使用命令助手(作者：Yancey)", commands.get());
         Profile::pop();
+    }
+
+    void CPack::validate() const {
+        //命令的名字不能为空，排序和命令匹配都会访问name[0]
+        for (const auto &item: *commands) {
+            if (item.name.empty()) [[unlikely]] {
+                Profile::push("validating command");
+                Profile::push("command name cannot be empty");
+                throw std::runtime_error("command name cannot be empty");
+            }
+            //startNodes为空会使Parser在解析命令时创建childNodes为空的OR节点
+            if (item.startNodes.empty()) [[unlikely]] {
+                Profile::push("validating command \"{}\"", FORMAT_ARG(utf8::utf16to8(item.name[0])));
+                Profile::push("command must have at least one start node, check the syntax field");
+                throw std::runtime_error("command start nodes cannot be empty");
+            }
+        }
+        //repeatNodes为空会使Parser创建childNodes为空的OR节点
+        for (const auto &item: repeatNodeData) {
+            if (item.repeatNodes.empty()) [[unlikely]] {
+                Profile::push("checking repeat node: {}", FORMAT_ARG(item.id));
+                Profile::push("repeat node must have at least one repeat node");
+                throw std::runtime_error("repeat nodes cannot be empty");
+            }
+        }
     }
 
 #ifndef CHELPER_NO_FILESYSTEM

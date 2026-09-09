@@ -32,6 +32,12 @@ namespace CHelper {
 #if SPDLOG_ACTIVE_LEVEL <= SPDLOG_LEVEL_INFO
             const auto end = std::chrono::high_resolution_clock::now();
 #endif
+            //provider返回nullptr说明资源包加载失败，不允许产生内部cpack为nullptr的CHelperCore，
+            //否则后续getCPack()/createContext()会解引用空指针
+            if (cPack == nullptr) [[unlikely]] {
+                Profile::push("getCPack returned nullptr");
+                throw std::runtime_error("getCPack returned nullptr");
+            }
             SPDLOG_INFO("CPack load successfully ({})", FORMAT_ARG(std::chrono::duration_cast<std::chrono::milliseconds>(end - start)));
             return new CHelperCore(std::move(cPack));
         } catch (const std::exception &e) {

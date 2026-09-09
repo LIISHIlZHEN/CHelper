@@ -224,6 +224,12 @@ namespace CHelper::Node {
         static void init(NodeJsonEntry &node, const CPack &cpack) {
         }
         static void init(NodeJsonEntry &node, const std::vector<NodeWithType> &dataList) {
+            if (node.value.empty()) [[unlikely]] {
+                //value为空会产生childNodes为空的OR节点，Parser访问orNode的childNodes[whichBest]时会越界
+                Profile::push("checking json entry \"{}\"", FORMAT_ARG(utf8::utf16to8(node.key)));
+                Profile::push("json entry must have at least one value node");
+                throw std::runtime_error("json entry value cannot be empty");
+            }
             std::vector<NodeWithType> valueNodes;
             for (const auto &item: node.value) {
                 bool notFind = true;
@@ -282,7 +288,9 @@ namespace CHelper::Node {
                 }
             }
             if (node.start.data == nullptr) [[unlikely]] {
+                //start node无法解析时不能继续，否则Parser会使用data为nullptr的节点导致未定义行为
                 Profile::push("unknown node id -> {}", FORMAT_ARG(node.startNodeId));
+                throw std::runtime_error(fmt::format("unknown start node id: {}", node.startNodeId));
             }
             for (auto &item: node.nodes.nodes) {
                 if (item.nodeTypeId == NodeTypeId::JSON_LIST) [[unlikely]] {
